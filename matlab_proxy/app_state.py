@@ -1,5 +1,9 @@
 # Copyright 2020-2024 The MathWorks, Inc.
 
+from pathlib import Path
+import shutil
+import tempfile
+
 import asyncio
 import contextlib
 import json
@@ -17,10 +21,7 @@ from matlab_proxy.constants import (
     MATLAB_LOGS_FILE_NAME,
     IS_CONCURRENCY_CHECK_ENABLED,
 )
-from matlab_proxy.settings import (
-    get_process_startup_timeout,
-)
-from matlab_proxy.util import mw, mwi, system, windows
+from matlab_proxy.util import get_tempdir, mw, mwi, system, windows
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi import token_auth
 from matlab_proxy.util.mwi.exceptions import (
@@ -1047,6 +1048,32 @@ class AppState:
         logger.debug(f"Started MATLAB (PID={matlab.pid})")
         self.processes["matlab"] = matlab
 
+        # check if the user has provided any code or not
+        if len(os.environ.get(mwi_env.get_env_name_custom_matlab_code(),"")) > 0:
+            folderpath = Path(get_tempdir())
+            filepath = folderpath / "mw_custom_matlab_code_output" / str(matlab.pid) / "MWI_CUSTOM_MATLAB_CODE_OUTPUT.txt"
+            write_access = True
+
+            #creating a folder in temp directory to check whether we have write access or not
+            try:
+                temp_check_folder = folderpath / "mwi_temp_check_folder"
+                temp_check_folder.mkdir(parents=False, exist_ok=True)
+                shutil.rmtree(temp_check_folder, ignore_errors=False)
+            except Exception as e:
+                write_access = False
+            if write_access:
+                # logger.info(f"Once MATLAB starts the output for the provided MATLAB code will be available at: {filepath}, if no exception occurs.")
+                logger.info(util.prettify(
+                    boundary_filler='*',
+                    text_arr=[f"Once MATLAB starts the output for the provided MATLAB code will be available at:",f"{filepath}"]
+                ))
+            else:
+                # logger.info(f"Access denied: The code cannot be executed due to insufficient permissions at: {folderpath}")
+                logger.info(util.prettify(
+                    boundary_filler='*',
+                    text_arr=[f"Access denied: The code cannot be executed due to insufficient permissions at:",f"{folderpath}"]
+                ))
+
         loop = util.get_event_loop()
         # Start all tasks relevant to MATLAB process
         self.tasks["matlab_stderr_reader_posix"] = loop.create_task(
@@ -1169,6 +1196,16 @@ class AppState:
         # In posix systems, variable matlab is an instance of asyncio.subprocess.Process()
         # In windows systems, variable matlab is an instance of psutil.Process()
         matlab = self.processes["matlab"]
+        
+        matlab_process_id  = matlab.pid if matlab is not None else -1
+        if  matlab_process_id != -1 and len(os.environ.get(mwi_env.get_env_name_custom_matlab_code(),"")) > 0:
+            folderPath = Path(get_tempdir()) / "mw_custom_matlab_code_output" / str(matlab_process_id)
+            try:
+                shutil.rmtree(folderPath, ignore_errors=False)
+                logger.info(f"Deleting:{folderPath}")
+            except Exception as e:
+                # logger.info(f"Error deleting {folderPath}: {e}")
+                pass
 
         waiters = []
         if matlab is not None:

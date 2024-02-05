@@ -267,3 +267,43 @@ def is_valid_path(path: Path):
     """
     path = Path(path)
     return path.is_dir() or path.is_file()
+
+def get_tempdir():
+    """Returns the path of temp directory, similar to MATLAB's tempdir function
+
+    Returns:
+        String: Path of the temp directory which is same as the path returned by MATLAB's tempdir function
+    """
+    if(system.is_windows()):
+        tmp_dir = os.getenv('TMP')
+
+        if not tmp_dir:
+            tmp_dir = os.getenv('TEMP')
+
+        if not tmp_dir:
+            tmp_dir = os.getenv('USERPROFILE')
+
+        if not tmp_dir:
+            tmp_dir = 'C:\\temp'
+
+    else:
+        tmp_dir = os.getenv('TMPDIR')
+
+        if not tmp_dir:
+            tmp_dir = os.getenv('TMP')
+            
+        if not tmp_dir:
+            tmp_dir = '/tmp'
+    
+    tmp_dir = os.path.realpath(tmp_dir)
+    if not tmp_dir.endswith(os.path.sep):
+        tmp_dir += os.path.sep
+
+    return tmp_dir
+
+
+
+
+
+
+    
