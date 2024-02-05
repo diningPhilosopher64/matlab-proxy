@@ -2,8 +2,6 @@
 
 from pathlib import Path
 import shutil
-import tempfile
-
 import asyncio
 import contextlib
 import json
