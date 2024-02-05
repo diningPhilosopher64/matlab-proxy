@@ -1,3 +1,5 @@
+% Copyright 2024 The MathWorks, Inc.
+
 if ~isempty( getenv('MWI_CUSTOM_MATLAB_CODE') )
     try
          % Create a directory in the system's temporary directory with a unique name based on the process ID

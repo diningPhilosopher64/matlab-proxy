@@ -161,6 +161,7 @@ def get_env_name_process_startup_timeout():
     """User specified timeout in seconds for processes launched by matlab-proxy"""
     return "MWI_PROCESS_START_TIMEOUT"
 
+
 def get_env_name_custom_matlab_code():
     """User specified MATLAB code that will be executed by matlab-proxy upon its start"""
     return "MWI_CUSTOM_MATLAB_CODE"

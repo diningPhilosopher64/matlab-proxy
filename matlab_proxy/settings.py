@@ -367,7 +367,9 @@ def get_matlab_settings():
     if system.is_windows():
         flag_to_hide_desktop.extend(["-noDisplayDesktop", "-wait", "-log"])
     matlab_startup_file = str(Path(__file__).resolve().parent / "matlab" / "startup.m")
-    custom_matlab_code_file = str(Path(__file__).resolve().parent / "matlab" / "eval_custom_matlab_code.m")
+    custom_matlab_code_file = str(
+        Path(__file__).resolve().parent / "matlab" / "eval_custom_matlab_code.m"
+    )
     matlab_version = get_matlab_version(matlab_root_path)
 
     # If the matlab on system PATH is a wrapper script, then it would not be possible to determine MATLAB root (inturn not being able to determine MATLAB version)
