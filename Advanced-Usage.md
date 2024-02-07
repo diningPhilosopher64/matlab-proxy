@@ -31,6 +31,7 @@ The following table describes all the environment variables that you can set to 
 | **MWI_USE_EXISTING_LICENSE** | string (optional) | `"True"` | When set to True, matlab-proxy will not ask you for additional licensing information and will try to launch an already activated MATLAB on your system PATH.
 | **MWI_CUSTOM_MATLAB_ROOT** | string (optional) | `"/path/to/matlab/root/"` | Optionally, provide a custom path to MATLAB root. For more information see [Adding MATLAB to System Path](#adding-matlab-to-system-path) |
 | **MWI_PROCESS_START_TIMEOUT** | integer (optional) | `1234` |  This field controls the time (in seconds) for which `matlab-proxy` waits for the processes it spins up, viz: MATLAB & Xvfb, to respond. By default, this value is `600 seconds`. A timeout could either indicate an issue with the spawned processes or be a symptom of a resource-constrained environment. Increase this value if your environment needs more time for the spawned processes to start.|
+| **MWI_CUSTOM_MATLAB_CODE** | string (optional) | `"addpath('/path/to/a/folder'), c=12"` | Optionally, this field is utilized to pass MATLAB code to `matlab-proxy`, which will be executed at the startup of MATLAB, akin to the -r flag in MATLAB. For more information see [Passing custom MATLAB code to MATLAB through matlab-proxy-app ](#custom-matlab-code) |
 
 ## Adding MATLAB to System Path
 
@@ -134,6 +135,24 @@ Replace `your.machine.fqdn.com` with the FQDN for the machine on which the `ubun
 
 The logs from the SQUID container terminal should show activity when attempting to login to MATLAB through matlab-proxy.
 
+### Custom MATLAB Code
+
+Use the environment variable `MWI_CUSTOM_MATLAB_CODE` to specify any custom MATLAB code that you wish to be executed at the startup of MATLAB when using matlab-proxy. When this environment variable is set, matlab-proxy will execute this code immediately upon MATLAB's start.
+
+This might be useful in the following situations:
+
+1. When certain directories need to be added to MATLAB's search path before executing any scripts.
+2. When specific constants are required to be present in the workspace every time.
+3. When additional information or startup commands need to be passed to MATLAB through the matlab-proxy-app.
+
+Example usage:
+```bash
+env MWI_CUSTOM_MATLAB_CODE="c1=124, c2='xyz', addpath('C:\Windows\Temp')" matlab-proxy-app
+```
+
+This sets up two variables, c1 and c2, with values 124 and 'xyz' respectively, and adds the directory C:\Windows\Temp to MATLAB's search path.
+
+**NOTE**: If you restart MATLAB using the 'restart MATLAB' button within the same matlab proxy session, the MATLAB code provided will run at the beginning again. This process will repeat until the code is removed from the environment variable, or you start the proxy application from a new terminal session that doesn't have this environment variable set.
 
 ----
 
