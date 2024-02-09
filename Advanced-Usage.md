@@ -137,22 +137,22 @@ The logs from the SQUID container terminal should show activity when attempting 
 
 ### Custom MATLAB Code
 
-Use the environment variable `MWI_CUSTOM_MATLAB_CODE` to specify any custom MATLAB code that you wish to be executed at the startup of MATLAB when using matlab-proxy. When this environment variable is set, matlab-proxy will execute this code immediately upon MATLAB's start.
+To specify MATLAB code that runs automatically when you start MATLAB using `matlab-proxy`, use the environment variable `MWI_CUSTOM_MATLAB_CODE`.
 
-This might be useful in the following situations:
+This might be useful when you want to:
 
-1. When certain directories need to be added to MATLAB's search path before executing any scripts.
-2. When specific constants are required to be present in the workspace every time.
-3. When additional information or startup commands need to be passed to MATLAB through the matlab-proxy-app.
+1. Add a directory to the MATLAB search path before you run a script.
+2. Set a constant in the workspace.
+3. Pass additional information or startup commands to MATLAB through the matlab-proxy-app.
 
-Example usage:
+For example, use the command
 ```bash
 env MWI_CUSTOM_MATLAB_CODE="c1=124, c2='xyz', addpath('C:\Windows\Temp')" matlab-proxy-app
 ```
 
-This sets up two variables, c1 and c2, with values 124 and 'xyz' respectively, and adds the directory C:\Windows\Temp to MATLAB's search path.
+to set variables `c1` and `c2`, with values `124` and `'xyz'`, respectively, and add the directory `C:\Windows\Temp` to the MATLAB search path.
 
-**NOTE**: If you restart MATLAB using the 'restart MATLAB' button within the same matlab proxy session, the MATLAB code provided will run at the beginning again. This process will repeat until the code is removed from the environment variable, or you start the proxy application from a new terminal session that doesn't have this environment variable set.
+Note: If you restart your `matlab-proxy` session using the 'restart MATLAB' button, the code specified in `MWI_CUSTOM_MATLAB_CODE` runs again. This continues until you modify the environment variable, or start `matlab-proxy` from a new terminal session where you have not set the environment variable.
 
 ----
 

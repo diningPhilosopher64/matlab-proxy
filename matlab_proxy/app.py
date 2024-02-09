@@ -1,4 +1,6 @@
 # Copyright 2020-2024 The MathWorks, Inc.
+import os
+from pathlib import Path
 
 import asyncio
 import json
@@ -845,6 +847,16 @@ def configure_and_start(app):
     )
 
     app["state"].create_server_info_file()
+
+    if len(os.environ.get(mwi_env.get_env_name_custom_matlab_code(), "")) > 0:
+        user_code_output_file, matlab_code_file = app[
+            "state"
+        ].get_output_and_matlab_file_paths()
+        extend_matlab_cmd = f"mwi_internal_user_code_output_file_path='{user_code_output_file}'; try; run('{matlab_code_file}'); catch ME; disp(ME.message); end;"
+
+        app["settings"]["matlab_cmd"][-1] = (
+            app["settings"]["matlab_cmd"][-1] + extend_matlab_cmd
+        )
 
     # Startup tasks are being done here as app.on_startup leads
     # to a race condition for mwi_server_url information which is

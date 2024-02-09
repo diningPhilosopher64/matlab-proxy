@@ -19,7 +19,7 @@ from matlab_proxy.constants import (
     MATLAB_LOGS_FILE_NAME,
     IS_CONCURRENCY_CHECK_ENABLED,
 )
-from matlab_proxy.util import get_tempdir, mw, mwi, system, windows
+from matlab_proxy.util import mw, mwi, system, windows
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi import token_auth
 from matlab_proxy.util.mwi.exceptions import (
@@ -623,6 +623,25 @@ class AppState:
             )
         )
 
+    def get_output_and_matlab_file_paths(self):
+        mwi_logs_root_dir = self.settings["mwi_logs_root_dir"]
+        # Use the app_port number to identify the server as that is user visible
+        mwi_logs_dir = mwi_logs_root_dir / str(self.settings["app_port"])
+        # Ensure the directory exists where the output file will be stored
+        mwi_logs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Define the path for the new empty text file to store user code output
+        user_code_output_file = mwi_logs_dir / "user_code_output.txt"
+
+        # Keep a reference to the user code output file in the session files, if needed
+        self.mwi_server_session_files["user_code_output_file"] = user_code_output_file
+
+        matlab_code_file = (
+            Path(__file__).resolve().parent / "matlab" / "evaluate_user_matlab_code.m"
+        )
+
+        return str(user_code_output_file), str(matlab_code_file)
+
     def clean_up_mwi_server_session(self):
         # Clean up mwi_server_session_files
         try:
@@ -1048,44 +1067,16 @@ class AppState:
 
         # check if the user has provided any code or not
         if len(os.environ.get(mwi_env.get_env_name_custom_matlab_code(), "")) > 0:
-            folderpath = Path(get_tempdir())
-            filepath = (
-                folderpath
-                / "mw_custom_matlab_code_output"
-                / str(matlab.pid)
-                / "MWI_CUSTOM_MATLAB_CODE_OUTPUT.txt"
+            # logger.info(f"Once MATLAB starts the output for the provided MATLAB code will be available at: {filepath}, if no exception occurs.")
+            logger.info(
+                util.prettify(
+                    boundary_filler="*",
+                    text_arr=[
+                        f"Once MATLAB starts the output for the provided MATLAB code will be available at:",
+                        f"{self.mwi_server_session_files.get('user_code_output_file', 'Given Code Not Executed')}",
+                    ],
+                )
             )
-            write_access = True
-
-            # creating a folder in temp directory to check whether we have write access or not
-            try:
-                temp_check_folder = folderpath / "mwi_temp_check_folder"
-                temp_check_folder.mkdir(parents=False, exist_ok=True)
-                shutil.rmtree(temp_check_folder, ignore_errors=False)
-            except Exception as e:
-                write_access = False
-            if write_access:
-                # logger.info(f"Once MATLAB starts the output for the provided MATLAB code will be available at: {filepath}, if no exception occurs.")
-                logger.info(
-                    util.prettify(
-                        boundary_filler="*",
-                        text_arr=[
-                            f"Once MATLAB starts the output for the provided MATLAB code will be available at:",
-                            f"{filepath}",
-                        ],
-                    )
-                )
-            else:
-                # logger.info(f"Access denied: The code cannot be executed due to insufficient permissions at: {folderpath}")
-                logger.info(
-                    util.prettify(
-                        boundary_filler="*",
-                        text_arr=[
-                            f"Access denied: The code cannot be executed due to insufficient permissions at:",
-                            f"{folderpath}",
-                        ],
-                    )
-                )
 
         loop = util.get_event_loop()
         # Start all tasks relevant to MATLAB process
@@ -1209,23 +1200,6 @@ class AppState:
         # In posix systems, variable matlab is an instance of asyncio.subprocess.Process()
         # In windows systems, variable matlab is an instance of psutil.Process()
         matlab = self.processes["matlab"]
-
-        matlab_process_id = matlab.pid if matlab is not None else -1
-        if (
-            matlab_process_id != -1
-            and len(os.environ.get(mwi_env.get_env_name_custom_matlab_code(), "")) > 0
-        ):
-            folderPath = (
-                Path(get_tempdir())
-                / "mw_custom_matlab_code_output"
-                / str(matlab_process_id)
-            )
-            try:
-                shutil.rmtree(folderPath, ignore_errors=False)
-                logger.info(f"Deleting:{folderPath}")
-            except Exception as e:
-                # logger.info(f"Error deleting {folderPath}: {e}")
-                pass
 
         waiters = []
         if matlab is not None:
