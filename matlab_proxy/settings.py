@@ -367,6 +367,9 @@ def get_matlab_settings():
     if system.is_windows():
         flag_to_hide_desktop.extend(["-noDisplayDesktop", "-wait", "-log"])
     matlab_startup_file = str(Path(__file__).resolve().parent / "matlab" / "startup.m")
+    matlab_code_file = str(
+        Path(__file__).resolve().parent / "matlab" / "evaluate_user_matlab_code.m"
+    )
 
     matlab_version = get_matlab_version(matlab_root_path)
 
@@ -402,7 +405,7 @@ def get_matlab_settings():
             *mpa_flags,
             profile_matlab_startup,
             "-r",
-            f"try; run('{matlab_startup_file}'); catch ME; disp(ME.message); end;",
+            f"try; run('{matlab_startup_file}'); catch ME; disp(ME.message); end; try; run('{matlab_code_file}'); catch ME; disp(ME.message); end;",
         ],
         "ws_env": ws_env,
         "mwa_api_endpoint": f"https://login{ws_env_suffix}.mathworks.com/authenticationws/service/v4",

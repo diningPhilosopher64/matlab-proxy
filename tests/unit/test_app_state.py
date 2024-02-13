@@ -1,5 +1,6 @@
 # Copyright 2023-2024 The MathWorks, Inc.
 
+from abc import abstractclassmethod
 import json
 import os
 from dataclasses import dataclass
@@ -662,3 +663,27 @@ async def test_detect_active_client_status_can_reset_active_client(app_state_fix
     assert (
         app_state_fixture.active_client == None
     ), f"Expected the active_client to be None"
+
+@pytest.mark.parametrize("is_function_called", [True, False])
+def test_add_user_code_output_file_path_to_session_files(
+    app_state_fixture, is_function_called
+):
+    """Test to check add_user_code_output_file_path_to_session_files()
+
+    Args:
+        app_state_fixture (AppState): Object of AppState class with defaults set
+    """
+    if is_function_called == True:
+        app_state_fixture.add_user_code_output_file_path_to_session_files()
+        expected_path = Path(
+            app_state_fixture.settings["mwi_logs_root_dir"]
+            / str(app_state_fixture.settings["app_port"])
+            / "user_code_output.txt"
+        )
+    else:
+        expected_path = None
+
+    assert (
+        app_state_fixture.mwi_server_session_files.get("user_code_output_file")
+        == expected_path
+    )

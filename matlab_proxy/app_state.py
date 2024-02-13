@@ -623,7 +623,7 @@ class AppState:
             )
         )
 
-    def get_output_and_matlab_file_paths(self):
+    def add_user_code_output_file_path_to_session_files(self):
         mwi_logs_root_dir = self.settings["mwi_logs_root_dir"]
         # Use the app_port number to identify the server as that is user visible
         mwi_logs_dir = mwi_logs_root_dir / str(self.settings["app_port"])
@@ -635,12 +635,6 @@ class AppState:
 
         # Keep a reference to the user code output file in the session files, if needed
         self.mwi_server_session_files["user_code_output_file"] = user_code_output_file
-
-        matlab_code_file = (
-            Path(__file__).resolve().parent / "matlab" / "evaluate_user_matlab_code.m"
-        )
-
-        return str(user_code_output_file), str(matlab_code_file)
 
     def clean_up_mwi_server_session(self):
         # Clean up mwi_server_session_files
@@ -764,9 +758,9 @@ class AppState:
             logger.info(
                 f"Writing MATLAB process logs to: {matlab_env['MW_DIAGNOSTIC_DEST']}"
             )
-            matlab_env["MW_DIAGNOSTIC_SPEC"] = (
-                "connector::http::server=all;connector::lifecycle=all"
-            )
+            matlab_env[
+                "MW_DIAGNOSTIC_SPEC"
+            ] = "connector::http::server=all;connector::lifecycle=all"
 
         # TODO Introduce a warmup flag to enable this?
         # matlab_env["CONNECTOR_CONFIGURABLE_WARMUP_TASKS"] = "warmup_hgweb"
@@ -1067,13 +1061,12 @@ class AppState:
 
         # check if the user has provided any code or not
         if len(os.environ.get(mwi_env.get_env_name_custom_matlab_code(), "")) > 0:
-            # logger.info(f"Once MATLAB starts the output for the provided MATLAB code will be available at: {filepath}, if no exception occurs.")
             logger.info(
                 util.prettify(
                     boundary_filler="*",
                     text_arr=[
                         f"Once MATLAB starts the output for the provided MATLAB code will be available at:",
-                        f"{self.mwi_server_session_files.get('user_code_output_file', 'Given Code Not Executed')}",
+                        f"{self.mwi_server_session_files.get('user_code_output_file', ' ')}",
                     ],
                 )
             )
