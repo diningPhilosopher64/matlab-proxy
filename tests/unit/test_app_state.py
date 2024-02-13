@@ -379,8 +379,10 @@ async def test_update_matlab_status_based_on_connector_status(
         return_value=connector_status,
     )
     mocker.patch.object(Path, "exists", return_value=ready_file_present)
-    # Patch lock.locked() as lock would be acquired by the caller of _update_matlab_connector_status
-    mocker.patch.object(app_state_fixture.lock, "locked", return_value=True)
+    # Patch matlab_state_updater_lock.locked() as lock would be acquired by the caller of _update_matlab_connector_status
+    mocker.patch.object(
+        app_state_fixture.matlab_state_updater_lock, "locked", return_value=True
+    )
     app_state_fixture.settings["mwi_is_token_auth_enabled"] = False
     app_state_fixture.matlab_session_files["matlab_ready_file"] = Path("dummy")
     # Act

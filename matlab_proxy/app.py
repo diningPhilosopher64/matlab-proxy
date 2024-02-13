@@ -95,7 +95,7 @@ def marshal_error(error):
         return {"message": error.__str__, "logs": "", "type": error.__class__.__name__}
 
 
-async def create_status_response(
+def create_status_response(
     app, loadUrl=None, client_id=None, transfer_session=False, is_desktop=False
 ):
     """Send a generic status response about the state of server, MATLAB, MATLAB Licensing and the client session status.
@@ -204,7 +204,7 @@ async def get_status(req):
     transfer_session = json.loads(req.query.get("TRANSFER_SESSION", "false"))
     is_desktop = req.query.get("IS_DESKTOP", False)
 
-    return await create_status_response(
+    return create_status_response(
         req.app,
         client_id=client_id,
         transfer_session=transfer_session,
@@ -256,7 +256,7 @@ async def start_matlab(req):
     # Start MATLAB
     await state.start_matlab(restart_matlab=True)
 
-    return await create_status_response(req.app)
+    return create_status_response(req.app)
 
 
 @token_auth.authenticate_access_decorator
@@ -273,7 +273,7 @@ async def stop_matlab(req):
 
     await state.stop_matlab()
 
-    return await create_status_response(req.app)
+    return create_status_response(req.app)
 
 
 @token_auth.authenticate_access_decorator
@@ -324,7 +324,7 @@ async def set_licensing_info(req):
     # This is true for a user who has only one license associated with their account
     await __start_matlab_if_licensed(state)
 
-    return await create_status_response(req.app)
+    return create_status_response(req.app)
 
 
 @token_auth.authenticate_access_decorator
@@ -348,7 +348,7 @@ async def update_entitlement(req):
         await state.update_user_selected_entitlement_info(entitlement_id)
         await __start_matlab_if_licensed(state)
 
-    return await create_status_response(req.app)
+    return create_status_response(req.app)
 
 
 async def __start_matlab_if_licensed(state):
@@ -384,7 +384,7 @@ async def licensing_info_delete(req):
     # Persist config information
     state.persist_config_data()
 
-    return await create_status_response(req.app)
+    return create_status_response(req.app)
 
 
 @token_auth.authenticate_access_decorator
@@ -398,7 +398,7 @@ async def termination_integration_delete(req):
     state = req.app["state"]
 
     # Send response manually because this has to happen before the application exits
-    res = await create_status_response(req.app, "../")
+    res = create_status_response(req.app, "../")
     await res.prepare(req)
     await res.write_eof()
 

@@ -1,4 +1,4 @@
-# Copyright 2023 The MathWorks, Inc.
+# Copyright 2023-2024 The MathWorks, Inc.
 # Script to help users troubleshoot common errors with the environment
 # This script is designed to be used in standalone manner and to maintain
 # that, it doesn't use utility functions present in the parent repository.

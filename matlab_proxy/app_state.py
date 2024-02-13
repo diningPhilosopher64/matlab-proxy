@@ -113,7 +113,7 @@ class AppState:
         self.__matlab_state = "down"
 
         # Lock to be used before modifying MATLAB state
-        self.lock = asyncio.Lock()
+        self.matlab_state_updater_lock = asyncio.Lock()
 
         loop = util.get_event_loop()
 
@@ -266,7 +266,7 @@ class AppState:
 
         while True:
             # Acquire lock before modifying MATLAB state
-            async with self.lock:
+            async with self.matlab_state_updater_lock:
                 if not self._are_required_processes_ready():
                     self.set_matlab_state("down")
                     logger.debug(f"{this_task}: Required processes are not ready yet")
@@ -286,7 +286,7 @@ class AppState:
         Args:
             new_state (str): The new state of MATLAB
         """
-        if not self.lock.locked():
+        if not self.matlab_state_updater_lock.locked():
             logger.error(
                 LockNotAcquiredException(
                     f"Lock needs to be acquired by '{util.get_caller_name()}()' before modifying MATLAB state"
@@ -406,6 +406,7 @@ class AppState:
             self.set_matlab_state("down")
             return
 
+        # If the matlab_ready_file path is constructed and is not yet created by the embedded connector.
         if matlab_ready_file and not matlab_ready_file.exists():
             self.set_matlab_state("starting")
             return
@@ -1066,7 +1067,7 @@ class AppState:
 
         # Acquire lock before setting MATLAB state to 'starting'.
         # This would ensure the state of MATLAB is not updated asynchronously by other functions/tasks until the lock is released.
-        async with self.lock:
+        async with self.matlab_state_updater_lock:
             self.set_matlab_state("starting")
             # Clear MATLAB errors and logging
             self.error = None
@@ -1227,7 +1228,7 @@ class AppState:
 
         # Acquire lock before setting MATLAB state to 'stopping'.
         # This would ensure the state of MATLAB is not updated asynchronously by other functions/tasks until the lock is released.
-        async with self.lock:
+        async with self.matlab_state_updater_lock:
             self.set_matlab_state("stopping")
             # Clean up session files which determine various states of the server &/ MATLAB.
             # Do this first as stopping MATLAB/Xvfb takes longer and may fail
