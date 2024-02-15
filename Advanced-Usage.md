@@ -152,7 +152,10 @@ env MWI_CUSTOM_MATLAB_CODE="c1=124, c2='xyz', addpath('C:\Windows\Temp')" matlab
 
 to set variables `c1` and `c2`, with values `124` and `'xyz'`, respectively, and add the directory `C:\Windows\Temp` to the MATLAB search path.
 
-Note: If you restart your `matlab-proxy` session using the 'restart MATLAB' button, the code specified in `MWI_CUSTOM_MATLAB_CODE` runs again. This continues until you modify the environment variable, or start `matlab-proxy` from a new terminal session where you have not set the environment variable.
+If the code you specify throws an error, then after MATLAB starts, you see a variable `ME` of type `MException` in the workspace.
+To see the error message, run `disp(ME.message)` in the command window
+
+Note: If you restart your `matlab-proxy` session using the **Restart MATLAB** button, the code specified in `MWI_CUSTOM_MATLAB_CODE` runs again. This continues until you modify the environment variable, or start `matlab-proxy` from a new terminal session where you have not set the environment variable.
 
 ----
 

@@ -366,10 +366,10 @@ def get_matlab_settings():
     flag_to_hide_desktop = ["-nodesktop"]
     if system.is_windows():
         flag_to_hide_desktop.extend(["-noDisplayDesktop", "-wait", "-log"])
-    matlab_startup_file = str(Path(__file__).resolve().parent / "matlab" / "startup.m")
-    matlab_code_file = str(
-        Path(__file__).resolve().parent / "matlab" / "evaluate_user_matlab_code.m"
-    )
+
+    matlab_code_dir = Path(__file__).resolve().parent / "matlab"
+    matlab_startup_file = str(matlab_code_dir / "startup.m")
+    matlab_code_file = str(matlab_code_dir / "evaluateUserMatlabCode.m")
 
     matlab_version = get_matlab_version(matlab_root_path)
 
@@ -412,6 +412,12 @@ def get_matlab_settings():
         "mhlm_api_endpoint": f"https://licensing{ws_env_suffix}.mathworks.com/mls/service/v1/entitlement/list",
         "mwa_login": f"https://login{ws_env_suffix}.mathworks.com",
         "nlm_conn_str": nlm_conn_str,
+        "has_custom_code_to_execute": len(
+            mwi.validators.validate_custom_matlab_code(
+                os.getenv(mwi_env.get_env_name_custom_matlab_code(), "")
+            )
+        )
+        > 0,
     }
 
 

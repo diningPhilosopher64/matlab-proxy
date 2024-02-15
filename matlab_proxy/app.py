@@ -848,9 +848,6 @@ def configure_and_start(app):
 
     app["state"].create_server_info_file()
 
-    if len(os.environ.get(mwi_env.get_env_name_custom_matlab_code(), "")) > 0:
-        app["state"].add_user_code_output_file_path_to_session_files()
-
     # Startup tasks are being done here as app.on_startup leads
     # to a race condition for mwi_server_url information which is
     # extracted from the site info.

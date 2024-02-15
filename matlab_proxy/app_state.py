@@ -18,6 +18,7 @@ from matlab_proxy.constants import (
     CONNECTOR_SECUREPORT_FILENAME,
     MATLAB_LOGS_FILE_NAME,
     IS_CONCURRENCY_CHECK_ENABLED,
+    USER_CODE_OUTPUT_FILE_NAME,
 )
 from matlab_proxy.util import mw, mwi, system, windows
 from matlab_proxy.util.mwi import environment_variables as mwi_env
@@ -593,6 +594,24 @@ class AppState:
             self.matlab_session_files["matlab_ready_file"] = matlab_ready_file
 
             logger.debug(f"matlab_session_files:{self.matlab_session_files}")
+
+            # check if the user has provided any code or not
+            if "has_custom_code_to_execute" in self.settings and self.settings["has_custom_code_to_execute"]:
+                # Keep a reference to the user code output file in the matlab_session_files for cleanup
+                user_code_output_file = mwi_logs_dir / USER_CODE_OUTPUT_FILE_NAME
+                self.matlab_session_files["user_code_output_file"] = (
+                    user_code_output_file
+                )
+                logger.info(
+                    util.prettify(
+                        boundary_filler="*",
+                        text_arr=[
+                            f"Once MATLAB starts the output for the provided MATLAB code will be available at:",
+                            f"{self.matlab_session_files.get('user_code_output_file', ' ')}",
+                        ],
+                    )
+                )
+
             return
 
     def create_server_info_file(self):
@@ -1058,18 +1077,6 @@ class AppState:
 
         logger.debug(f"Started MATLAB (PID={matlab.pid})")
         self.processes["matlab"] = matlab
-
-        # check if the user has provided any code or not
-        if len(os.environ.get(mwi_env.get_env_name_custom_matlab_code(), "")) > 0:
-            logger.info(
-                util.prettify(
-                    boundary_filler="*",
-                    text_arr=[
-                        f"Once MATLAB starts the output for the provided MATLAB code will be available at:",
-                        f"{self.mwi_server_session_files.get('user_code_output_file', ' ')}",
-                    ],
-                )
-            )
 
         loop = util.get_event_loop()
         # Start all tasks relevant to MATLAB process

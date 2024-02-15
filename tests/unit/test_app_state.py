@@ -8,12 +8,18 @@ from pathlib import Path
 from typing import Optional
 
 import pytest
+from matlab_proxy import app, settings
 
 from matlab_proxy import settings
 from matlab_proxy.app_state import AppState
 from matlab_proxy.constants import MWI_AUTH_TOKEN_NAME_FOR_HTTP
 from matlab_proxy.util.mwi.exceptions import LicensingError, MatlabError
 from tests.unit.util import MockResponse
+
+from matlab_proxy.constants import (
+    CONNECTOR_SECUREPORT_FILENAME,
+    USER_CODE_OUTPUT_FILE_NAME,
+)
 
 
 @pytest.fixture
@@ -36,6 +42,7 @@ def sample_settings_fixture(tmp_path):
         "mwi_logs_root_dir": Path(settings.get_mwi_config_folder(dev=True)),
         "app_port": 12345,
         "mwapikey": "asdf",
+        "has_custom_code_to_execute": False,
     }
 
 
@@ -553,7 +560,6 @@ async def test_requests_sent_by_matlab_proxy_have_headers(
     ]
     assert sample_token_headers_fixture == connector_status_request_headers
 
-
 async def test_start_matlab_without_xvfb(app_state_fixture, mocker):
     """Test to check if Matlab process starts without throwing errors when Xvfb is not present
 
@@ -585,7 +591,6 @@ async def test_start_matlab_without_xvfb(app_state_fixture, mocker):
     assert app_state_fixture.processes["xvfb"] is None
     # Check if Matlab started
     assert app_state_fixture.processes["matlab"] is mock_matlab
-
 
 @pytest.mark.parametrize(
     "is_desktop, client_id, is_client_id_present, expected_is_active_client",
@@ -649,7 +654,6 @@ async def test_get_session_status_can_transfer_session(app_state_fixture):
     # For clean up of task_detect_client_status
     app_state_fixture.active_client = None
 
-
 async def test_detect_active_client_status_can_reset_active_client(app_state_fixture):
     """Test to check whether the value of active client is being reset due to the client inactivity.
 
@@ -673,17 +677,36 @@ def test_add_user_code_output_file_path_to_session_files(
     Args:
         app_state_fixture (AppState): Object of AppState class with defaults set
     """
-    if is_function_called == True:
-        app_state_fixture.add_user_code_output_file_path_to_session_files()
-        expected_path = Path(
-            app_state_fixture.settings["mwi_logs_root_dir"]
-            / str(app_state_fixture.settings["app_port"])
-            / "user_code_output.txt"
-        )
-    else:
-        expected_path = None
-
-    assert (
-        app_state_fixture.mwi_server_session_files.get("user_code_output_file")
-        == expected_path
+    app_state_fixture.settings["has_custom_code_to_execute"] = (
+        has_custom_code_to_execute
     )
+    app_state_fixture.create_logs_dir_for_MATLAB()
+
+    expected_path_matlab_ready_file = Path(
+        app_state_fixture.settings["mwi_logs_root_dir"]
+        / str(app_state_fixture.settings["app_port"])
+        / CONNECTOR_SECUREPORT_FILENAME
+    )
+    expected_path_user_code_output_file = Path(
+        app_state_fixture.settings["mwi_logs_root_dir"]
+        / str(app_state_fixture.settings["app_port"])
+        / USER_CODE_OUTPUT_FILE_NAME
+    )
+
+    if has_custom_code_to_execute == True:
+        assert len(app_state_fixture.matlab_session_files) == 2
+        assert (
+            app_state_fixture.matlab_session_files.get("matlab_ready_file")
+            == expected_path_matlab_ready_file
+        )
+        assert (
+            app_state_fixture.matlab_session_files.get("user_code_output_file")
+            == expected_path_user_code_output_file
+        )
+
+    else:
+        assert len(app_state_fixture.matlab_session_files) == 1
+        assert (
+            app_state_fixture.matlab_session_files.get("matlab_ready_file")
+            == expected_path_matlab_ready_file
+        )
