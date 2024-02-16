@@ -272,8 +272,9 @@ async def test_start_matlab_route(test_server):
         test_server (aiohttp_client): A aiohttp_client server to send GET request to.
     """
     # Waiting for the matlab process to start up.
-    sleep_interval = 1
-    await wait_for_matlab_to_be_up(test_server, sleep_interval)
+    await wait_for_matlab_to_be_up(
+        test_server, test_constants.CHECK_MATLAB_STATUS_INTERVAL
+    )
 
     # Send get request to end point
     await test_server.put("/start_matlab")

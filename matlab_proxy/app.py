@@ -735,18 +735,9 @@ async def cleanup_background_tasks(app):
 
     await state.stop_matlab(force_quit=True)
 
-    # Stop any running async tasks
-    logger = mwi.logger.get()
     # Cleanup both matlab and server tasks
-    tasks = {**state.matlab_tasks, **state.server_tasks}
-    for task_name, task in tasks.items():
-        if not task.cancelled():
-            logger.debug(f"Cancelling MWI task: {task_name} : {task} ")
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+    all_tasks = state.server_tasks
+    await util.cancel_tasks(all_tasks)
 
 
 def configure_and_start(app):

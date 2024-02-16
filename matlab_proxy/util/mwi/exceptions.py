@@ -165,8 +165,13 @@ class InvalidTokenError(AppError):
     pass
 
 
-class LockNotAcquiredException(Exception):
-    """Exception raised when accessing a critical section without acquiring a lock.
+class LockAcquisitionError(Exception):
+    """Exception raised when a lock is not properly acquired before modifying a variable.
+
+    This error is thrown in scenarios where:
+    1) A lock must be acquired before modifying a shared resource, but it wasn't.
+    2) The lock for a shared resource was acquired by one function, but another function attempts to modify the resource without holding the lock.
+
 
     Args:
         Exception : Python's inbuilt Exception Class.

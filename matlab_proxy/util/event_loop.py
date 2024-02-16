@@ -1,8 +1,10 @@
-# Copyright 2020-2022 The MathWorks, Inc.
+# Copyright 2020-2024 The MathWorks, Inc.
+
+from typing import Dict
+from contextlib import suppress
 
 import asyncio
 
-from matlab_proxy import util
 from matlab_proxy.util import mwi, system, windows
 
 logger = mwi.logger.get()
@@ -30,16 +32,15 @@ def get_event_loop():
     return loop
 
 
-async def cancel_tasks(tasks):
+async def cancel_tasks(tasks: Dict[str, asyncio.Task]):
     """Cancels asyncio tasks.
 
     Args:
-        tasks (asyncio.Task): Asyncio task
+        tasks (Dict[str, asyncio.Task]): Contains (task_name, task) as entries in the Dict.
     """
-    for task in tasks:
-        logger.debug(f"Calling cancel on task: {task}")
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+    for name, task in list(tasks.items()):
+        if task:
+            with suppress(asyncio.CancelledError):
+                task.cancel()
+                await task
+                logger.debug(f"{name} task stopped successfully")

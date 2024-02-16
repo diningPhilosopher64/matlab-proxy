@@ -253,8 +253,13 @@ def is_valid_path(path: Path):
     return path.is_dir() or path.is_file()
 
 
-def get_caller_name():
-    """Utility function to get the name of the function that called it.
+def get_caller_name() -> str:
+    """Utility function that uses the `inspect` module to access the call stack and returns the name
+    of the function that is two levels above in the stack. This is typically the function
+    that called the function that invoked `get_caller_name`.
+
+    Ex: start_matlab() -> set_matlab_state() -> get_caller_name()
+    The return value from get_caller_name() would be `start_matlab`
 
     Returns:
         str: Name of the parent function.
