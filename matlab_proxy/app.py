@@ -1,6 +1,4 @@
 # Copyright 2020-2024 The MathWorks, Inc.
-import os
-from pathlib import Path
 
 import asyncio
 import json

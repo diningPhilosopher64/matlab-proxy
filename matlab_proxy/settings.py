@@ -413,9 +413,7 @@ def get_matlab_settings():
         "mwa_login": f"https://login{ws_env_suffix}.mathworks.com",
         "nlm_conn_str": nlm_conn_str,
         "has_custom_code_to_execute": len(
-            mwi.validators.validate_custom_matlab_code(
-                os.getenv(mwi_env.get_env_name_custom_matlab_code(), "")
-            )
+            os.getenv(mwi_env.get_env_name_custom_matlab_code(), "").strip()
         )
         > 0,
     }

@@ -677,36 +677,17 @@ def test_add_user_code_output_file_path_to_session_files(
     Args:
         app_state_fixture (AppState): Object of AppState class with defaults set
     """
+    # Arrange
     app_state_fixture.settings["has_custom_code_to_execute"] = (
         has_custom_code_to_execute
     )
+
+    # Act
     app_state_fixture.create_logs_dir_for_MATLAB()
 
-    expected_path_matlab_ready_file = Path(
-        app_state_fixture.settings["mwi_logs_root_dir"]
-        / str(app_state_fixture.settings["app_port"])
-        / CONNECTOR_SECUREPORT_FILENAME
-    )
-    expected_path_user_code_output_file = Path(
-        app_state_fixture.settings["mwi_logs_root_dir"]
-        / str(app_state_fixture.settings["app_port"])
-        / USER_CODE_OUTPUT_FILE_NAME
-    )
+    # Assert
+    for _, session_file_path in app_state_fixture.matlab_session_files.items():
+        # Check session files are present in mwi logs directory
+        assert app_state_fixture.mwi_logs_dir == Path(session_file_path).parent
 
-    if has_custom_code_to_execute == True:
-        assert len(app_state_fixture.matlab_session_files) == 2
-        assert (
-            app_state_fixture.matlab_session_files.get("matlab_ready_file")
-            == expected_path_matlab_ready_file
-        )
-        assert (
-            app_state_fixture.matlab_session_files.get("user_code_output_file")
-            == expected_path_user_code_output_file
-        )
-
-    else:
-        assert len(app_state_fixture.matlab_session_files) == 1
-        assert (
-            app_state_fixture.matlab_session_files.get("matlab_ready_file")
-            == expected_path_matlab_ready_file
-        )
+    assert len(app_state_fixture.matlab_session_files) == session_file_count

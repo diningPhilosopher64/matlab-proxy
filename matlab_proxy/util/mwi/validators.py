@@ -342,25 +342,3 @@ def validate_matlab_root_path(matlab_root: Path, is_custom_matlab_root: bool):
         return None
 
     return matlab_root
-
-
-def validate_custom_matlab_code(matlab_code: str):
-    """Validates matlab_code set in the env variable MWI_CUSTOM_MATLAB_CODE.
-
-    If MWI_CUSTOM_MATLAB_CODE contains only whitespaces, will use matlab_code=""
-
-    Args:
-        matlab_code (str): The matlab_code which will be executed at each startup of MATLAB.
-
-    Returns:
-        [str]: Validated matlab_code
-    """
-
-    validated_matlab_code = matlab_code
-    if len(matlab_code) > 0 and matlab_code.isspace():
-        validated_matlab_code = ""
-
-        log_warn_string = "Environment variable 'MWI_CUSTOM_MATLAB_CODE' is set but contains only whitespaces."
-        logger.warn(log_warn_string)
-
-    return validated_matlab_code

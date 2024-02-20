@@ -1,7 +1,5 @@
 # Copyright 2020-2024 The MathWorks, Inc.
 
-from pathlib import Path
-import shutil
 import asyncio
 import contextlib
 import json
@@ -596,10 +594,7 @@ class AppState:
             logger.debug(f"matlab_session_files:{self.matlab_session_files}")
 
             # check if the user has provided any code or not
-            if (
-                "has_custom_code_to_execute" in self.settings
-                and self.settings["has_custom_code_to_execute"]
-            ):
+            if self.settings.get("has_custom_code_to_execute"):
                 # Keep a reference to the user code output file in the matlab_session_files for cleanup
                 user_code_output_file = mwi_logs_dir / USER_CODE_OUTPUT_FILE_NAME
                 self.matlab_session_files["user_code_output_file"] = (
