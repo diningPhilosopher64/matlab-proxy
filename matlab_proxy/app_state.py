@@ -597,15 +597,15 @@ class AppState:
             if self.settings.get("has_custom_code_to_execute"):
                 # Keep a reference to the user code output file in the matlab_session_files for cleanup
                 user_code_output_file = mwi_logs_dir / USER_CODE_OUTPUT_FILE_NAME
-                self.matlab_session_files["user_code_output_file"] = (
+                self.matlab_session_files["startup_code_output_file"] = (
                     user_code_output_file
                 )
                 logger.info(
                     util.prettify(
                         boundary_filler="*",
                         text_arr=[
-                            f"Once MATLAB starts the output for the provided MATLAB code will be available at:",
-                            f"{self.matlab_session_files.get('user_code_output_file', ' ')}",
+                            f"When MATLAB starts, you can see the output for your startup code at:",
+                            f"{self.matlab_session_files.get('startup_code_output_file', ' ')}",
                         ],
                     )
                 )

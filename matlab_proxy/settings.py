@@ -391,6 +391,16 @@ def get_matlab_settings():
     profile_matlab_startup = (
         "-timing" if mwi_env.Experimental.is_matlab_startup_profiling_enabled() else ""
     )
+
+    has_custom_code_to_execute = (
+        len(os.getenv(mwi_env.get_env_name_custom_matlab_code(), "").strip()) > 0
+    )
+    r_string = (
+        f"try; run('{matlab_startup_file}'); catch ME; disp(ME.message); end; try; run('{matlab_code_file}'); catch ME; disp(ME.message); end;"
+        if has_custom_code_to_execute
+        else f"try; run('{matlab_startup_file}'); catch ME; disp(ME.message); end;"
+    )
+
     return {
         "matlab_path": matlab_root_path,
         "matlab_version": matlab_version,
@@ -405,7 +415,7 @@ def get_matlab_settings():
             *mpa_flags,
             profile_matlab_startup,
             "-r",
-            f"try; run('{matlab_startup_file}'); catch ME; disp(ME.message); end; try; run('{matlab_code_file}'); catch ME; disp(ME.message); end;",
+            r_string,
         ],
         "ws_env": ws_env,
         "mwa_api_endpoint": f"https://login{ws_env_suffix}.mathworks.com/authenticationws/service/v4",
