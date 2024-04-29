@@ -1,6 +1,5 @@
 # Copyright 2023-2024 The MathWorks, Inc.
 
-from abc import abstractclassmethod
 import json
 import os
 from dataclasses import dataclass
@@ -8,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 import pytest
-from matlab_proxy import app, settings
+from matlab_proxy import settings
 
 from matlab_proxy import settings
 from matlab_proxy.app_state import AppState

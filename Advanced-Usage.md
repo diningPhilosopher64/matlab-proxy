@@ -31,7 +31,7 @@ The following table describes all the environment variables that you can set to 
 | **MWI_USE_EXISTING_LICENSE** | string (optional) | `"True"` | When set to True, matlab-proxy will not ask you for additional licensing information and will try to launch an already activated MATLAB on your system PATH.
 | **MWI_CUSTOM_MATLAB_ROOT** | string (optional) | `"/path/to/matlab/root/"` | Optionally, provide a custom path to MATLAB root. For more information see [Adding MATLAB to System Path](#adding-matlab-to-system-path) |
 | **MWI_PROCESS_START_TIMEOUT** | integer (optional) | `1234` |  This field controls the time (in seconds) for which `matlab-proxy` waits for the processes it spins up, viz: MATLAB & Xvfb, to respond. By default, this value is `600 seconds`. A timeout could either indicate an issue with the spawned processes or be a symptom of a resource-constrained environment. Increase this value if your environment needs more time for the spawned processes to start.|
-| **MWI_MATLAB_STARTUP_SCRIPT** | string (optional) | `"addpath('/path/to/a/folder'), c=12"` | Optionally, this field is utilized to pass MATLAB code to `matlab-proxy`, which will be executed at the startup of MATLAB, akin to the -r flag in MATLAB. <br />Use this optional variable run custom MATLAB code when you start matlab-proxy. For details, see [Run Custom MATLAB Startup Code](#run-custom-matlab-startup-code) |
+| **MWI_MATLAB_STARTUP_SCRIPT** | string (optional) | `"addpath('/path/to/a/folder'), c=12"` | Executes string provided at MATLAB startup. For details, see [Run Custom MATLAB Startup Code](#run-custom-matlab-startup-code) |
 
 ## Adding MATLAB to System Path
 
@@ -137,13 +137,14 @@ The logs from the SQUID container terminal should show activity when attempting 
 
 ### Run Custom MATLAB Startup Code
 
-To specify MATLAB code that runs automatically when you start MATLAB using `matlab-proxy`, use the environment variable `MWI_MATLAB_STARTUP_SCRIPT`.
+Use the environment variable `MWI_MATLAB_STARTUP_SCRIPT` to specify MATLAB code that should run when MATLAB is started through `matlab-proxy`.
 
-This might be useful when you want to:
+ The string specified through this environment variable is executed by MATLAB after running `startup.m` that may be on your path. For more information see: [User-defined startup script](https://in.mathworks.com/help/matlab/ref/startup.html).
 
+
+Use this environment variable to specify startup commands that only run when MATLAB is started through `matlab-proxy` to effect changes such as:
 1. Add a directory to the MATLAB search path before you run a script.
-2. Set a constant in the workspace.
-3. Pass additional information or startup commands to MATLAB through the matlab-proxy-app.
+2. Set a constant in the workspace
 
 For example, to set variables `c1` and `c2`, with values `124` and `'xyz'`, respectively, and to add the directory `C:\Windows\Temp` to the MATLAB search path, run the command:
 ```bash
@@ -154,12 +155,14 @@ To specify a script to run at startup, use the `run` command and provide the pat
 env MWI_MATLAB_STARTUP_SCRIPT="run('path/to/startup_script.m')" matlab-proxy-app
 ```
 
-If the code you specify throws an error, then after MATLAB starts, you see a variable `ME` of type `MException` in the workspace. To see the error message, run `disp(ME.message)` in the command window
+If the code you specify throws an error, then after MATLAB starts, you see a variable `MATLABCustomStartupCodeError` of type `MException` in the workspace. To see the error message, run `disp(MATLABCustomStartupCodeError.message)` in the command window
 
-Note: If you restart your `matlab-proxy` session using the **Restart MATLAB** button, the code specified in `MWI_MATLAB_STARTUP_SCRIPT` runs again. This continues until you modify the environment variable, or start `matlab-proxy` from a new terminal session where you have not set the environment variable.
+Note: Restarting MATLAB from within `matlab-proxy` will run the specified code again.
 
-Also note that `matlab-proxy` does not support startup MATLAB commands that require user input, such as `dbstop`, `keyboard`, and `inputfile`. Using these commands will make `matlab-proxy` unresponsive.
+#### Limitations
 
+* Commands that require user input are not supported. Usage of such commands will render `matlab-proxy` unresponsive.
+Examples: `dbstop`, `keyboard`, `inputfile` etc.
 
 ----
 

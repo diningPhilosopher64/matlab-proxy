@@ -30,6 +30,6 @@ Based on the license that you want to use, you can follow the procedures outline
 
 ----
 
-Copyright 2024 The MathWorks, Inc.
+Copyright 2020-2024 The MathWorks, Inc.
 
 ----

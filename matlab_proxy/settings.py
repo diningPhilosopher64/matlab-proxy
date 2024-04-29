@@ -395,10 +395,12 @@ def get_matlab_settings():
     has_custom_code_to_execute = (
         len(os.getenv(mwi_env.get_env_name_custom_matlab_code(), "").strip()) > 0
     )
-    r_string = (
-        f"try; run('{matlab_startup_file}'); catch ME; disp(ME.message); end; try; run('{matlab_code_file}'); catch ME; disp(ME.message); end;"
+    mp_code_to_execute = f"try; run('{matlab_startup_file}'); catch MATLABProxyInitializationError; disp(MATLABProxyInitializationError.message); end;"
+    custom_code_to_execute = f"try; run('{matlab_code_file}'); catch MATLABCustomStartupCodeError; disp(MATLABCustomStartupCodeError.message); end;"
+    code_to_execute = (
+        mp_code_to_execute + custom_code_to_execute
         if has_custom_code_to_execute
-        else f"try; run('{matlab_startup_file}'); catch ME; disp(ME.message); end;"
+        else mp_code_to_execute
     )
 
     return {
@@ -415,17 +417,14 @@ def get_matlab_settings():
             *mpa_flags,
             profile_matlab_startup,
             "-r",
-            r_string,
+            code_to_execute,
         ],
         "ws_env": ws_env,
         "mwa_api_endpoint": f"https://login{ws_env_suffix}.mathworks.com/authenticationws/service/v4",
         "mhlm_api_endpoint": f"https://licensing{ws_env_suffix}.mathworks.com/mls/service/v1/entitlement/list",
         "mwa_login": f"https://login{ws_env_suffix}.mathworks.com",
         "nlm_conn_str": nlm_conn_str,
-        "has_custom_code_to_execute": len(
-            os.getenv(mwi_env.get_env_name_custom_matlab_code(), "").strip()
-        )
-        > 0,
+        "has_custom_code_to_execute": has_custom_code_to_execute,
     }
 
 
