@@ -467,18 +467,24 @@ def test_get_ssl_context_with_invalid_custom_ssl_files_raises_exception(
 )
 def test_get_matlab_settings_custom_code(
     monkeypatch,
+    mocker,
     expected_value_for_has_custom_code,
     custom_code,
     has_custom_code_exception_matlab_cmd,
 ):
     # Arrange
     monkeypatch.setenv(mwi_env.get_env_name_custom_matlab_code(), custom_code)
+    mocker.patch(
+        "matlab_proxy.settings.get_matlab_executable_and_root_path",
+        return_value=("matlab", None),
+    )
 
     # Act
     matlab_settings = settings.get_matlab_settings()
     exception_present_in_matlab_cmd = (
         "MATLABCustomStartupCodeError" in matlab_settings["matlab_cmd"][-1]
     )
+    print(matlab_settings)
 
     # Assert
     assert (
