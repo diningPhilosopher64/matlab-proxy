@@ -18,6 +18,9 @@ from matlab_proxy.constants import (
     IS_CONCURRENCY_CHECK_ENABLED,
     USER_CODE_OUTPUT_FILE_NAME,
 )
+
+from matlab_proxy.settings import get_process_startup_timeout
+
 from matlab_proxy.util import mw, mwi, system, windows
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi import token_auth
