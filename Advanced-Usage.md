@@ -137,16 +137,17 @@ The logs from the SQUID container terminal should show activity when attempting 
 
 ### Run Custom MATLAB Startup Code
 
-Use the environment variable `MWI_MATLAB_STARTUP_SCRIPT` to specify MATLAB code that should run when MATLAB is started through `matlab-proxy`.
-
- The string specified through this environment variable is executed by MATLAB after running `startup.m` that may be on your path. For more information see: [User-defined startup script](https://in.mathworks.com/help/matlab/ref/startup.html).
+Use the environment variable `MWI_MATLAB_STARTUP_SCRIPT` to specify MATLAB code to run when you start MATLAB through `matlab-proxy`.
 
 
-Use this environment variable to specify startup commands that only run when MATLAB is started through `matlab-proxy` to effect changes such as:
-1. Add a directory to the MATLAB search path before you run a script.
+When you start MATLAB by running `matlab-proxy`, MATLAB will first run a `startup.m` file that might be on your path. For details, see [User-defined startup script for MATLAB](https://www.mathworks.com/help/matlab/ref/startup.html). MATLAB will then run any code you have provided as a string to the `MWI_MATLAB_STARTUP_SCRIPT` environment variable.
+
+
+You might want to run code at startup to:
+1. Add a folder to the MATLAB search path before you run a script.
 2. Set a constant in the workspace
 
-For example, to set variables `c1` and `c2`, with values `124` and `'xyz'`, respectively, and to add the directory `C:\Windows\Temp` to the MATLAB search path, run the command:
+For example, to set variables `c1` and `c2`, with values `124` and `'xyz'`, respectively, and to add the folder `C:\Windows\Temp` to the MATLAB search path, run the command:
 ```bash
 env MWI_MATLAB_STARTUP_SCRIPT="c1=124, c2='xyz', addpath('C:\Windows\Temp')" matlab-proxy-app
 ```
@@ -155,14 +156,13 @@ To specify a script to run at startup, use the `run` command and provide the pat
 env MWI_MATLAB_STARTUP_SCRIPT="run('path/to/startup_script.m')" matlab-proxy-app
 ```
 
-If the code you specify throws an error, then after MATLAB starts, you see a variable `MATLABCustomStartupCodeError` of type `MException` in the workspace. To see the error message, run `disp(MATLABCustomStartupCodeError.message)` in the command window
+If the code you specify throws an error, then after MATLAB starts, you see a variable `MATLABCustomStartupCodeError` of type `MException` in the workspace. To see the error message, run `disp(MATLABCustomStartupCodeError.message)` in the command window.
 
 Note: Restarting MATLAB from within `matlab-proxy` will run the specified code again.
 
 #### Limitations
 
-* Commands that require user input are not supported. Usage of such commands will render `matlab-proxy` unresponsive.
-Examples: `dbstop`, `keyboard`, `inputfile` etc.
+* Commands that require user input or open MATLAB editor windows are not supported. Using commands such as `keyboard`, `openExample` or `edit` will render `matlab-proxy` unresponsive.
 
 ----
 
