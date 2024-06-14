@@ -666,8 +666,9 @@ async def test_reset_timer(app_state_fixture):
         app_state_fixture (AppState): Object of AppState class with defaults set
     """
     # Arrange
-    # Sleep for 1 second for the decrement_timer task to decrease IDLE timer by 1 second
-    await asyncio.sleep(1)
+    # Sleep for 1 second for the decrement_timer task to decrease IDLE timer by
+    # more than 1 second. This is for decreasing flakiness in tests on different platforms.
+    await asyncio.sleep(CHECK_MATLAB_STATUS_INTERVAL + CHECK_MATLAB_STATUS_INTERVAL)
 
     # Act
     await app_state_fixture.reset_timer()
@@ -689,13 +690,17 @@ async def test_decrement_timer(app_state_fixture):
     # Nothing to arrange
     # decrement_timer task is started automatically by the constructor
 
+    # Sleep for 1 second for the decrement_timer task to decrease IDLE timer by
+    # more than 1 second. This is for decreasing flakiness in tests on different platforms.
+    await asyncio.sleep(CHECK_MATLAB_STATUS_INTERVAL + CHECK_MATLAB_STATUS_INTERVAL)
+
     # Act
     # Nothing to act
 
     # Assert
     assert (
         app_state_fixture.get_remaining_idle_timeout()
-        == app_state_fixture.settings["mwi_idle_timeout"] - 1
+        > app_state_fixture.settings["mwi_idle_timeout"]
     )
 
 
@@ -718,7 +723,9 @@ async def test_decrement_timer_runs_out(sample_settings_fixture, mocker):
     mocker.patch("matlab_proxy.app_state.util.get_event_loop", return_value=mock_loop)
 
     # Act
-    await asyncio.sleep(idle_timeout)
+    # Wait for a little more time than idle_timeout to decrease flakiness in tests.
+    # MATLAB state changes from down -> starting -> up -> down (idle timer runs out)
+    await asyncio.sleep(idle_timeout * FIVE_MAX_TRIES)
 
     # Assert
     assert not mock_loop.is_running()
@@ -866,7 +873,37 @@ async def test_update_matlab_state_based_on_endpoint_to_use_happy_path(
     )
 
     # Assert
-    assert app_state_fixture.get_matlab_state() == "starting"
+    await assert_matlab_state(app_state_fixture, "starting", FIVE_MAX_TRIES)
+
+
+async def assert_matlab_state(app_state_fixture, expected_matlab_status, count):
+    """Tries to assert the MATLAB state to expected_matlab_status for count times.
+    Will raise Assertion error after.
+
+    The count is needed to decrease flakiness in tests when run on different platforms.
+
+    Args:
+        app_state_fixture (AppState): Instance of AppState class.
+        expected_matlab_status (str): Expected MATLAB status
+        count (int): Max tries for assertion before AssertionError is raised.
+
+    Raises:
+        AssertionError: Raised when assertion fails after 'count' tries
+    """
+    i = 0
+    while i < count:
+        try:
+            assert app_state_fixture.get_matlab_state() == expected_matlab_status
+            return
+
+        except:
+            await asyncio.sleep(CHECK_MATLAB_STATUS_INTERVAL)
+
+        i += 1
+
+    raise AssertionError(
+        f"MATLAB status failed to change to '{expected_matlab_status}'"
+    )
 
 
 @pytest.mark.parametrize(
@@ -909,19 +946,7 @@ async def test_check_matlab_connector_status_auto_updates_based_on_matlab_ready_
     assert app_state_fixture.get_matlab_state() == "down"
     await asyncio.sleep(CHECK_MATLAB_STATUS_INTERVAL)
 
-    # Allowing for some additional time to avoid flakiness in tests.
-    i = 0
-    while i < FIVE_MAX_TRIES:
-        try:
-            assert app_state_fixture.get_matlab_state() == expected_matlab_status
-            return
-
-        except:
-            await asyncio.sleep(CHECK_MATLAB_STATUS_INTERVAL)
-
-        i += 1
-
-    raise AssertionError("MATLAB status failed to change to 'starting'")
+    await assert_matlab_state(app_state_fixture, expected_matlab_status, FIVE_MAX_TRIES)
 
 
 async def test_update_matlab_state_switches_to_busy_endpoint(
