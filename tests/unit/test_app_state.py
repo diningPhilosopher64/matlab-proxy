@@ -700,7 +700,7 @@ async def test_decrement_timer(app_state_fixture):
     # Assert
     assert (
         app_state_fixture.get_remaining_idle_timeout()
-        > app_state_fixture.settings["mwi_idle_timeout"]
+        < app_state_fixture.settings["mwi_idle_timeout"]
     )
 
 

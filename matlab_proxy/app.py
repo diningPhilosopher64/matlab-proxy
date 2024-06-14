@@ -583,7 +583,7 @@ async def matlab_view(req):
         async with aiohttp.ClientSession(
             trust_env=True,
             cookies=req.cookies,
-            connector=aiohttp.TCPConnector(verify_ssl=False),
+            connector=aiohttp.TCPConnector(ssl=False),
         ) as client_session:
             try:
                 async with client_session.ws_connect(
@@ -649,7 +649,7 @@ async def matlab_view(req):
         timeout = aiohttp.ClientTimeout(total=None)
         async with aiohttp.ClientSession(
             trust_env=True,
-            connector=aiohttp.TCPConnector(verify_ssl=False),
+            connector=aiohttp.TCPConnector(ssl=False),
             timeout=timeout,
         ) as client_session:
             try:
