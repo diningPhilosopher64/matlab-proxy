@@ -1505,6 +1505,7 @@ class AppState:
             for waiter in waiters:
                 await waiter
 
+        # Release lock for the __update_matlab_state task to determine MATLAB state.
         await self.matlab_state_updater_lock.release()
 
         # Canceling all MATLAB process related tasks
