@@ -1621,5 +1621,5 @@ class AppState:
                 # If no request is received from the active_client for more than 10 seconds then clear the active client id
                 inactive_count = 0
                 self.active_client = None
-                
+
         await util.cancel_tasks([self.server_tasks.get("detect_client_status")])

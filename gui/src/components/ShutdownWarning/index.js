@@ -48,6 +48,7 @@ function ShutdownWarning ({ bufferTimeout, resumeCallback }) {
                         <div>
                             <button
                                 className='btn'
+                                id='resume-button'
                                 onClick={() => {
                                     resumeCallback();
                                     dispatch(setOverlayVisibility(false));
