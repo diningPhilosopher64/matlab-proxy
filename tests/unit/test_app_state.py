@@ -667,7 +667,7 @@ async def test_reset_timer(app_state_fixture):
     """
     # Arrange
     # Sleep for 1 second for the decrement_timer task to decrease IDLE timer by
-    # more than 1 second. This is for decreasing flakiness in tests on different platforms.
+    # more than 1 second. This is for decreasing flakiness of this test on different platforms.
     await asyncio.sleep(CHECK_MATLAB_STATUS_INTERVAL + CHECK_MATLAB_STATUS_INTERVAL)
 
     # Act
@@ -691,7 +691,7 @@ async def test_decrement_timer(app_state_fixture):
     # decrement_timer task is started automatically by the constructor
 
     # Sleep for 1 second for the decrement_timer task to decrease IDLE timer by
-    # more than 1 second. This is for decreasing flakiness in tests on different platforms.
+    # more than 1 second. This is for decreasing flakiness of this test on different platforms.
     await asyncio.sleep(CHECK_MATLAB_STATUS_INTERVAL + CHECK_MATLAB_STATUS_INTERVAL)
 
     # Act
@@ -723,7 +723,7 @@ async def test_decrement_timer_runs_out(sample_settings_fixture, mocker):
     mocker.patch("matlab_proxy.app_state.util.get_event_loop", return_value=mock_loop)
 
     # Act
-    # Wait for a little more time than idle_timeout to decrease flakiness in tests.
+    # Wait for a little more time than idle_timeout to decrease flakiness of this test on different platforms.
     # MATLAB state changes from down -> starting -> up -> down (idle timer runs out)
     await asyncio.sleep(idle_timeout * FIVE_MAX_TRIES)
 
@@ -880,7 +880,7 @@ async def assert_matlab_state(app_state_fixture, expected_matlab_status, count):
     """Tries to assert the MATLAB state to expected_matlab_status for count times.
     Will raise Assertion error after.
 
-    The count is needed to decrease flakiness in tests when run on different platforms.
+    The count is needed to decrease flakiness of this tests when run on different platforms.
 
     Args:
         app_state_fixture (AppState): Instance of AppState class.
@@ -984,8 +984,8 @@ async def test_update_matlab_state_switches_to_busy_endpoint(
     # for the MATLAB status to update from 'down'
 
     # Wait for the ping endpoint request. Waiting for more time than what
-    # is expected to decrease flakiness of this test on different platforms.
+    # is needed to decrease flakiness of this test on different platforms.
     await asyncio.sleep(1 * FIVE_MAX_TRIES)
 
     # Assert
-    mocked_busy_status_endpoint_function.assert_called()
+    assert mocked_busy_status_endpoint_function.call_count > 1
