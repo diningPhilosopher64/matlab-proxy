@@ -807,8 +807,8 @@ async def cleanup_background_tasks(app):
     await state.stop_matlab(force_quit=True)
 
     # Cleanup server tasks
-    all_tasks = state.server_tasks
-    await util.cancel_tasks(all_tasks)
+    server_tasks = state.server_tasks
+    await util.cancel_tasks(server_tasks)
 
 
 def configure_and_start(app):
@@ -947,22 +947,18 @@ def create_and_start_app(config_name):
     # Add signal handlers for the current python process
     loop = util.add_signal_handlers(loop)
     try:
+        # Further execution is stopped here until an interrupt is raised
         loop.run_forever()
+
     except SystemExit:
         pass
 
-    async def shutdown():
-        """Shuts down the app in the event of a signal interrupt."""
-        logger.info("Shutting down MATLAB proxy-app")
-
-        await app.shutdown()
-        await app.cleanup()
-
-        # Shutdown any running tasks.
-        await util.cancel_tasks(asyncio.all_tasks())
-
+    # After handling the interrupt, proceed with shutting down the server gracefully.
     try:
-        loop.run_until_complete(shutdown())
+        loop.run_until_complete(app.shutdown())
+        loop.run_until_complete(app.cleanup())
+        loop.run_until_complete(util.cancel_tasks(asyncio.all_tasks(loop)))
+
     except:
         pass
 
