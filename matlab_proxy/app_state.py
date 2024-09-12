@@ -183,7 +183,7 @@ class AppState:
     async def __decrement_idle_timer(self):
         """Decrements the IDLE timer by 1 after acquiring a lock."""
         this_task = "decrement_idle_timer"
-        logger.info(f"{this_task}: Starting task...")
+        logger.debug(f"{this_task}: Starting task...")
 
         while self.get_remaining_idle_timeout() > 0:
             # If MATLAB is either starting, stopping or busy, reset the IDLE timer.
@@ -456,7 +456,7 @@ class AppState:
     async def __update_matlab_state(self) -> None:
         """An indefinitely running asyncio task which determines the status of MATLAB to be down/starting/up."""
         this_task = "update_matlab_state"
-        logger.info(f"{this_task}: Starting task...")
+        logger.debug(f"{this_task}: Starting task...")
 
         # Start with using the ping endpoint to update matlab and its 'busy' state.
         function_to_call = self.__update_matlab_state_using_ping_endpoint
@@ -872,9 +872,9 @@ class AppState:
             if self.settings.get("has_custom_code_to_execute"):
                 # Keep a reference to the user code output file in the matlab_session_files for cleanup
                 user_code_output_file = mwi_logs_dir / USER_CODE_OUTPUT_FILE_NAME
-                self.matlab_session_files["startup_code_output_file"] = (
-                    user_code_output_file
-                )
+                self.matlab_session_files[
+                    "startup_code_output_file"
+                ] = user_code_output_file
                 logger.info(
                     util.prettify(
                         boundary_filler="*",
@@ -1031,9 +1031,9 @@ class AppState:
             logger.info(
                 f"Writing MATLAB process logs to: {matlab_env['MW_DIAGNOSTIC_DEST']}"
             )
-            matlab_env["MW_DIAGNOSTIC_SPEC"] = (
-                "connector::http::server=all;connector::lifecycle=all"
-            )
+            matlab_env[
+                "MW_DIAGNOSTIC_SPEC"
+            ] = "connector::http::server=all;connector::lifecycle=all"
 
         # TODO Introduce a warmup flag to enable this?
         # matlab_env["CONNECTOR_CONFIGURABLE_WARMUP_TASKS"] = "warmup_hgweb"

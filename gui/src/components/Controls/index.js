@@ -16,7 +16,8 @@ import {
     selectIsAuthenticated,
     selectAuthEnabled,
     selectLicensingIsMhlm,
-    selectIsEntitled
+    selectIsEntitled,
+    selectIsMatlabProxy
 } from '../../selectors';
 import {
     fetchStartMatlab,
@@ -51,6 +52,8 @@ function Controls ({
     // then start, stop & signout buttons should be disabled.
     const licensingIsMhlm = useSelector(selectLicensingIsMhlm);
     const isEntitled = useSelector(selectIsEntitled);
+
+    const isMatlabProxy = useSelector(selectIsMatlabProxy);
 
     let licensingData, licensingConfirmationMessage;
     switch (licensingInfo?.type) {
@@ -96,9 +99,9 @@ function Controls ({
             message: 'Are you sure you want to stop MATLAB?',
             callback: fetchStopMatlab
         },
-        TERMINATE: {
+        SHUTDOWN: {
             type: 'confirmation',
-            message: 'Are you sure you want to terminate MATLAB and the backing matlab-proxy server?',
+            message: 'Are you sure you want to shutdown MATLAB and the server?',
             callback: fetchShutdownIntegration
         },
         SIGN_OUT: {
@@ -162,18 +165,20 @@ function Controls ({
                 <span className='icon-custom-sign-out'></span>
                 <span className='btn-label'>{licensingData.label}</span>
             </button>
-            {/* <button
-                id="terminateIntegration"
-                className="btn btn_color_mediumgray companion_btn"
-                style={{display: 'none'}}
-                onClick={() => callback(Confirmations.TERMINATE)}
-                disabled={!canTerminateIntegration}
-                data-for="control-button-tooltip"
-                data-tip="Terminate your MATLAB and MATLAB in Jupyter sessions"
-            >
-                <span className='icon-custom-terminate'></span>
-                <span className='btn-label'>End Session</span>
-            </button> */}
+            { isMatlabProxy && (
+                <button
+                    id="shutdownIntegration"
+                    data-testid='shutdownIntegrationBtn'
+                    className={getBtnClass('shutdown')}
+                    onClick={() => callback(Confirmations.SHUTDOWN)}
+                    disabled={!canResetLicensing || (authEnabled && !isAuthenticated)}
+                    data-for="control-button-tooltip"
+                    data-tip= "Shutdown MATLAB and the matlab-proxy server"
+                >
+                    <span className='icon-custom-terminate'></span>
+                    <span className='btn-label'>Shutdown Integration</span>
+                </button>
+            )}
             <a
                 id="feedback"
                 data-testid='feedbackLink'

@@ -272,3 +272,8 @@ export const selectIntegrationName = createSelector(
         }
     }
 );
+
+export const selectIsMatlabProxy = createSelector(
+    selectIntegrationName,
+    (integrationName) => integrationName === 'MATLAB Desktop'
+);
