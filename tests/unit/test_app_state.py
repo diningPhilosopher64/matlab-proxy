@@ -94,9 +94,9 @@ def app_state_with_token_auth_fixture(
     app_state_fixture.matlab_session_files["matlab_ready_file"] = tmp_matlab_ready_file
     app_state_fixture.settings["mwi_is_token_auth_enabled"] = True
     app_state_fixture.settings["mwi_auth_token_name_for_env"] = mwi_auth_token_name
-    app_state_fixture.settings[
-        "mwi_auth_token_name_for_http"
-    ] = MWI_AUTH_TOKEN_NAME_FOR_HTTP
+    app_state_fixture.settings["mwi_auth_token_name_for_http"] = (
+        MWI_AUTH_TOKEN_NAME_FOR_HTTP
+    )
     app_state_fixture.settings["mwi_auth_token_hash"] = mwi_auth_token_hash
     app_state_fixture.settings["mwi_server_url"] = "http://localhost:8888"
 
@@ -626,9 +626,9 @@ def test_create_logs_dir_for_MATLAB(
         app_state_fixture (AppState): Object of AppState class with defaults set
     """
     # Arrange
-    app_state_fixture.settings[
-        "has_custom_code_to_execute"
-    ] = has_custom_code_to_execute
+    app_state_fixture.settings["has_custom_code_to_execute"] = (
+        has_custom_code_to_execute
+    )
 
     # Act
     app_state_fixture.create_logs_dir_for_MATLAB()
