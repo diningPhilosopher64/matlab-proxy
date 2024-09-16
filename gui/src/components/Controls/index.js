@@ -101,7 +101,7 @@ function Controls ({
         },
         SHUTDOWN: {
             type: 'confirmation',
-            message: 'Are you sure you want to shutdown MATLAB and the server?',
+            message: 'Are you sure you want to shut down MATLAB and MATLAB Proxy?',
             callback: fetchShutdownIntegration
         },
         SIGN_OUT: {
@@ -173,10 +173,10 @@ function Controls ({
                     onClick={() => callback(Confirmations.SHUTDOWN)}
                     disabled={!canResetLicensing || (authEnabled && !isAuthenticated)}
                     data-for="control-button-tooltip"
-                    data-tip= "Shutdown MATLAB and the matlab-proxy server"
+                    data-tip= "Stop MATLAB and MATLAB Proxy"
                 >
                     <span className='icon-custom-terminate'></span>
-                    <span className='btn-label'>Shutdown Integration</span>
+                    <span className='btn-label'>Shut Down</span>
                 </button>
             )}
             <a
