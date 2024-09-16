@@ -167,7 +167,7 @@ function Controls ({
             </button>
             { isMatlabProxy && (
                 <button
-                    id="shutdownIntegration"
+                    id="shutdownMatlabandMatlabProxy"
                     data-testid='shutdownBtn'
                     className={getBtnClass('shutdown')}
                     onClick={() => callback(Confirmations.SHUTDOWN)}
