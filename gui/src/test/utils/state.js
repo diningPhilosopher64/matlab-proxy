@@ -33,7 +33,7 @@ const state = {
     },
     envConfig: {
         doc_url: 'https://github.com/mathworks/matlab-proxy/',
-        extension_name: 'Default',
+        extension_name: 'default_configuration_matlab_proxy',
         extension_name_short_description: 'MATLAB Desktop'
     },
     matlab: {
