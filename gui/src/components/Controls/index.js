@@ -1,6 +1,6 @@
 // Copyright 2020-2024 The MathWorks, Inc.
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useSelector } from 'react-redux';
 import ReactTooltip from 'react-tooltip';
@@ -54,6 +54,11 @@ function Controls ({
     const isEntitled = useSelector(selectIsEntitled);
 
     const isMatlabProxy = useSelector(selectIsMatlabProxy);
+
+    // Adds tooltips back for conditionally rendered buttons.
+    useEffect(() => {
+        ReactTooltip.rebuild();
+    }, [isMatlabProxy, licensed]);
 
     let licensingData, licensingConfirmationMessage;
     switch (licensingInfo?.type) {
@@ -165,20 +170,18 @@ function Controls ({
                 <span className='icon-custom-sign-out'></span>
                 <span className='btn-label'>{licensingData.label}</span>
             </button>
-            { isMatlabProxy && (
-                <button
-                    id="shutdownMatlabandMatlabProxy"
-                    data-testid='shutdownBtn'
-                    className={getBtnClass('shutdown')}
-                    onClick={() => callback(Confirmations.SHUTDOWN)}
-                    disabled={!canResetLicensing || (authEnabled && !isAuthenticated)}
-                    data-for="control-button-tooltip"
-                    data-tip= "Stop MATLAB and MATLAB Proxy"
-                >
-                    <span className='icon-custom-terminate'></span>
-                    <span className='btn-label'>Shut Down</span>
-                </button>
-            )}
+            {isMatlabProxy && <button
+                id="shutdownMatlabandMatlabProxy"
+                data-testid='shutdownBtn'
+                className={getBtnClass('sign-out')}
+                onClick={() => callback(Confirmations.SHUTDOWN)}
+                disabled={!canResetLicensing || (authEnabled && !isAuthenticated)}
+                data-for="control-button-tooltip"
+                data-tip= "Stop MATLAB and MATLAB Proxy"
+            >
+                <span className='icon-custom-shutdown'></span>
+                <span className='btn-label'>Shut Down</span>
+            </button>}
             <a
                 id="feedback"
                 data-testid='feedbackLink'
