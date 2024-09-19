@@ -626,9 +626,9 @@ def test_create_logs_dir_for_MATLAB(
         app_state_fixture (AppState): Object of AppState class with defaults set
     """
     # Arrange
-    app_state_fixture.settings[
-        "has_custom_code_to_execute"
-    ] = has_custom_code_to_execute
+    app_state_fixture.settings["has_custom_code_to_execute"] = (
+        has_custom_code_to_execute
+    )
 
     # Act
     app_state_fixture.create_logs_dir_for_MATLAB()
