@@ -123,8 +123,9 @@ describe('Controls Component', () => {
         // Hide the tutorial and make the overlay visible.
         initialState.tutorialHidden = true;
         initialState.overlayVisibility = true;
-        // Update the extension_name to something other than the default.
-        initialState.envConfig.extension_name = 'not-matlab-proxy';
+
+        // Update the envConfig to not show shutdown button
+        initialState.envConfig.should_show_shutdown_button = false;
 
         const { container } = render(<Controls callback={callbackFn} />, {
             initialState
