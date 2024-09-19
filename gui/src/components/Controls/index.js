@@ -17,7 +17,7 @@ import {
     selectAuthEnabled,
     selectLicensingIsMhlm,
     selectIsEntitled,
-    selectIsMatlabProxy
+    selectShouldShowShutdownButton
 } from '../../selectors';
 import {
     fetchStartMatlab,
@@ -53,12 +53,12 @@ function Controls ({
     const licensingIsMhlm = useSelector(selectLicensingIsMhlm);
     const isEntitled = useSelector(selectIsEntitled);
 
-    const isMatlabProxy = useSelector(selectIsMatlabProxy);
+    const shouldShowShutdownButton = useSelector(selectShouldShowShutdownButton);
 
     // Adds tooltips back for conditionally rendered buttons.
     useEffect(() => {
         ReactTooltip.rebuild();
-    }, [isMatlabProxy, licensed]);
+    }, [shouldShowShutdownButton, licensed]);
 
     let licensingData, licensingConfirmationMessage;
     switch (licensingInfo?.type) {
@@ -170,7 +170,7 @@ function Controls ({
                 <span className='icon-custom-sign-out'></span>
                 <span className='btn-label'>{licensingData.label}</span>
             </button>
-            {isMatlabProxy && <button
+            {shouldShowShutdownButton && <button
                 id="shutdownMatlabandMatlabProxy"
                 data-testid='shutdownBtn'
                 className={getBtnClass('sign-out')}
