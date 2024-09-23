@@ -173,7 +173,7 @@ function Controls ({
             {shouldShowShutdownButton && <button
                 id="shutdownMatlabandMatlabProxy"
                 data-testid='shutdownBtn'
-                className={getBtnClass('sign-out')}
+                className={getBtnClass('shutdown')}
                 onClick={() => callback(Confirmations.SHUTDOWN)}
                 disabled={!canResetLicensing || (authEnabled && !isAuthenticated)}
                 data-for="control-button-tooltip"
