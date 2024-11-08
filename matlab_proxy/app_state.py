@@ -1178,7 +1178,7 @@ class AppState:
                 else:
                     time_diff = time.time() - self.embedded_connector_start_time
                     if time_diff > self.PROCESS_TIMEOUT:
-                        # Since max allowed startup time has elapsed, it means that MATLAB is in a stuck state and cannot be launched.
+                        # Since max allowed startup time has elapsed, it means that MATLAB is stuck and is unable to launch.
                         # Set the error and stop matlab.
                         user_visible_error = "Unable to start MATLAB.\nTry again by clicking Start MATLAB."
 
@@ -1187,32 +1187,27 @@ class AppState:
                             # So, raise a generic error wherever appropriate
                             generic_error = f"MATLAB did not start in {int(self.PROCESS_TIMEOUT)} seconds. Use Windows Remote Desktop to check for any errors."
                             logger.error(f":{this_task}: {generic_error}")
-                            if len(self.logs["matlab"]) == 0:
-                                await self.__force_stop_matlab(
-                                    user_visible_error, this_task
-                                )
-                                # Breaking out of the loop to end this task as matlab-proxy was unable to launch MATLAB successfully
-                                # even after waiting for self.PROCESS_TIMEOUT
-                                break
-                            else:
-                                # Do not stop the MATLAB process or break from the loop (the error type is unknown)
-                                self.error = MatlabError(generic_error)
-                                await asyncio.sleep(5)
-                                continue
+
+                            # Stopping the MATLAB process would remove the UI window displaying the error too.
+                            # Do not stop the MATLAB or break from the loop (as the error is still unknown)
+                            self.error = MatlabError(generic_error)
+                            await asyncio.sleep(5)
+                            continue
 
                         else:
-                            # If there are no logs after the max startup time has elapsed, it means that MATLAB is in a stuck state and cannot be launched.
+                            # If there are no logs after the max startup time has elapsed, it means that MATLAB is stuck and is unable to launch.
                             # Set the error and stop matlab.
                             logger.error(
                                 f":{this_task}: MATLAB did not start in {int(self.PROCESS_TIMEOUT)} seconds!"
                             )
-                            if len(self.logs["matlab"]) == 0:
-                                await self.__force_stop_matlab(
-                                    user_visible_error, this_task
-                                )
-                                # Breaking out of the loop to end this task as matlab-proxy was unable to launch MATLAB successfully
-                                # even after waiting for self.PROCESS_TIMEOUT
-                                break
+                            # MATLAB can be stopped on posix systems because the stderr pipe of the MATLAB process is
+                            # read (by __matlab_stderr_reader_posix() task) and is logged by matlab-proxy appropriately.
+                            await self.__force_stop_matlab(
+                                user_visible_error, this_task
+                            )
+                            # Breaking out of the loop to end this task as matlab-proxy was unable to launch MATLAB successfully
+                            # even after waiting for self.PROCESS_TIMEOUT
+                            break
 
                     else:
                         logger.debug(

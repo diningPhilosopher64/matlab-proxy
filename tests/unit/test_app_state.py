@@ -364,7 +364,37 @@ def test_are_required_processes_ready(
     assert actual == expected
 
 
-@pytest.mark.parametrize("platform", [("linux"), ("windows"), ("mac")])
+@pytest.mark.parametrize("platform", [("linux"), ("mac")])
+async def test_track_embedded_connector_posix(
+    mocker_os_patching_fixture, app_state_fixture
+):
+    """Test to check track_embedded_connector task
+
+    Args:
+        mocker_os_patching_fixture (mocker): Custom pytest fixture for mocking
+        app_state_fixture (AppState): Object of AppState class with defaults set
+    """
+
+    # Arrange
+    # patching embedded_connector_start_time to EPOCH+1 seconds and state to be "down"
+    mocker_os_patching_fixture.patch.object(
+        app_state_fixture, "embedded_connector_start_time", new=float(1.0)
+    )
+    mocker_os_patching_fixture.patch.object(
+        app_state_fixture, "embedded_connector_state", return_value="down"
+    )
+    #
+    # verify that stop_matlab() is called once
+    spy = mocker_os_patching_fixture.spy(app_state_fixture, "stop_matlab")
+
+    # Act
+    await app_state_fixture._AppState__track_embedded_connector_state()
+
+    # Assert
+    spy.assert_called_once()
+
+
+@pytest.mark.parametrize("platform", [("windows")])
 async def test_track_embedded_connector(mocker_os_patching_fixture, app_state_fixture):
     """Test to check track_embedded_connector task
 
@@ -382,14 +412,17 @@ async def test_track_embedded_connector(mocker_os_patching_fixture, app_state_fi
         app_state_fixture, "embedded_connector_state", return_value="down"
     )
 
-    # verify that stop_matlab() is called once
     spy = mocker_os_patching_fixture.spy(app_state_fixture, "stop_matlab")
 
     # Act
-    await app_state_fixture._AppState__track_embedded_connector_state()
-
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(
+            app_state_fixture._AppState__track_embedded_connector_state(),
+            timeout=3,  # timeout of 3 seconds to account for CI systems
+        )
     # Assert
-    spy.assert_called_once()
+    spy.assert_not_called()  # In windows, MATLAB process should not be stopped so that the UI error window is not closed.
+    assert isinstance(app_state_fixture.error, MatlabError)
 
 
 @pytest.mark.parametrize(
