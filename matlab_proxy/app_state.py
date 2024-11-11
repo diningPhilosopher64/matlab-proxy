@@ -222,7 +222,7 @@ class AppState:
     def __delete_cached_config_file(self):
         """Deletes the cached config file"""
         try:
-            logger.info(f"Deleting any cached config files!")
+            logger.debug(f"Deleting any cached config files!")
             os.remove(self.__get_cached_config_file())
         except FileNotFoundError:
             # The file being absent is acceptable.
@@ -230,7 +230,7 @@ class AppState:
 
     def __reset_and_delete_cached_config(self):
         """Reset licensing variable of the class and removes the cached config file."""
-        logger.info(f"Resetting cached config information...")
+        logger.debug(f"Resetting cached config information...")
         self.licensing = None
         self.__delete_cached_config_file()
 
@@ -276,7 +276,7 @@ class AppState:
         elif self.settings.get("nlm_conn_str", None) is not None:
             nlm_licensing_str = self.settings.get("nlm_conn_str")
             logger.debug(f"Found NLM:[{nlm_licensing_str}] set in environment")
-            logger.debug(f"Using NLM string to connect ... ")
+            logger.info(f"Using NLM:{nlm_licensing_str} to connect...")
             self.licensing = {
                 "type": "nlm",
                 "conn_str": nlm_licensing_str,
@@ -307,7 +307,7 @@ class AppState:
                             "type": "nlm",
                             "conn_str": licensing["conn_str"],
                         }
-                        logger.info("Using cached NLM licensing to launch MATLAB")
+                        logger.debug("Using cached NLM licensing to launch MATLAB")
 
                     elif licensing["type"] == "mhlm":
                         self.licensing = {
@@ -340,7 +340,7 @@ class AppState:
                         else:
                             self.__reset_and_delete_cached_config()
                     elif licensing["type"] == "existing_license":
-                        logger.info("Using cached existing license to launch MATLAB")
+                        logger.debug("Using cached existing license to launch MATLAB")
                         self.licensing = licensing
                     else:
                         # Somethings wrong, licensing is neither NLM or MHLM
@@ -920,7 +920,7 @@ class AppState:
         try:
             for session_file in self.mwi_server_session_files.items():
                 if session_file[1] is not None:
-                    logger.info(f"Deleting:{session_file[1]}")
+                    logger.debug(f"Deleting:{session_file[1]}")
                     session_file[1].unlink()
         except FileNotFoundError:
             # Files may not exist if cleanup is called before they are created
@@ -979,16 +979,16 @@ class AppState:
         if system.is_linux():
             if self.settings.get("matlab_display", None):
                 matlab_env["DISPLAY"] = self.settings["matlab_display"]
-                logger.info(
+                logger.debug(
                     f"Using the display number supplied by Xvfb process'{matlab_env['DISPLAY']}' for launching MATLAB"
                 )
             else:
                 if "DISPLAY" in matlab_env:
-                    logger.info(
+                    logger.debug(
                         f"Using the existing DISPLAY environment variable with value:{matlab_env['DISPLAY']} for launching MATLAB"
                     )
                 else:
-                    logger.info(
+                    logger.debug(
                         "No DISPLAY environment variable found. Launching MATLAB without it."
                     )
 
@@ -1405,7 +1405,7 @@ class AppState:
             if session_file_path is not None:
                 self.matlab_session_files[session_file_name] = None
                 with contextlib.suppress(FileNotFoundError):
-                    logger.info(f"Deleting:{session_file_path}")
+                    logger.debug(f"Deleting:{session_file_path}")
                     session_file_path.unlink()
 
         # In posix systems, variable matlab is an instance of asyncio.subprocess.Process()
@@ -1491,7 +1491,7 @@ class AppState:
         if system.is_posix():
             xvfb = self.processes["xvfb"]
             if xvfb is not None and xvfb.returncode is None:
-                logger.info(f"Terminating Xvfb (PID={xvfb.pid})")
+                logger.debug(f"Terminating Xvfb (PID={xvfb.pid})")
                 xvfb.terminate()
                 waiters.append(xvfb.wait())
 
