@@ -58,13 +58,13 @@ class AppState:
         self.settings = settings
         self.processes = {"matlab": None, "xvfb": None}
 
-        # Timeout for processes launched by matlab-proxy
+        # Timeout for processes started by matlab-proxy
         self.PROCESS_TIMEOUT = get_process_startup_timeout()
 
-        # The port on which MATLAB(launched by this matlab-proxy process) starts on.
+        # The port on which MATLAB(started by this matlab-proxy process) starts on.
         self.matlab_port = None
 
-        # The directory in which the instance of MATLAB (launched by this matlab-proxy process) will write logs to.
+        # The directory in which the instance of MATLAB (started by this matlab-proxy process) will write logs to.
         self.mwi_logs_dir = None
 
         # Dictionary of all files used to manage the MATLAB session.
@@ -99,7 +99,7 @@ class AppState:
         self.embedded_connector_start_time = None
 
         # Keep track of the state of the Embedded Connector.
-        # If there is some problem with launching the Embedded Connector(say an issue with licensing),
+        # If there is some problem with starting the Embedded Connector(say an issue with licensing),
         # the state of MATLAB process in app_state will continue to be in a 'starting' indefinitely.
         # This variable can be either "up" or "down"
         self.embedded_connector_state = "down"
@@ -259,14 +259,14 @@ class AppState:
         # Default value
         self.licensing = None
 
-        # If MWI_USE_EXISTING_LICENSE is set in environment, try launching MATLAB directly
+        # If MWI_USE_EXISTING_LICENSE is set in environment, try starting MATLAB directly
         if self.settings["mwi_use_existing_license"]:
             self.licensing = {"type": "existing_license"}
             logger.debug(
                 f"{mwi_env.get_env_name_mwi_use_existing_license()} variable set in environment"
             )
             logger.info(
-                f"!!! Launching MATLAB without providing any additional licensing information. This requires MATLAB to have been activated on the machine from which its being launched !!!"
+                f"!!! Starting MATLAB without providing any additional licensing information. This requires MATLAB to have been activated on the machine from which its being started !!!"
             )
 
             # Delete old config info from cache to ensure its wiped out first before persisting new info.
@@ -307,7 +307,7 @@ class AppState:
                             "type": "nlm",
                             "conn_str": licensing["conn_str"],
                         }
-                        logger.debug("Using cached NLM licensing to launch MATLAB")
+                        logger.debug("Using cached NLM licensing to start MATLAB")
 
                     elif licensing["type"] == "mhlm":
                         self.licensing = {
@@ -335,12 +335,12 @@ class AppState:
                             )
                             if successful_update:
                                 logger.debug(
-                                    "Using cached Online Licensing to launch MATLAB."
+                                    "Using cached Online Licensing to start MATLAB."
                                 )
                         else:
                             self.__reset_and_delete_cached_config()
                     elif licensing["type"] == "existing_license":
-                        logger.debug("Using cached existing license to launch MATLAB")
+                        logger.debug("Using cached existing license to start MATLAB")
                         self.licensing = licensing
                     else:
                         # Somethings wrong, licensing is neither NLM or MHLM
@@ -927,7 +927,7 @@ class AppState:
             pass
 
     async def __setup_env_for_matlab(self) -> dict:
-        """Configure the environment variables required for launching MATLAB by matlab-proxy.
+        """Configure the environment variables required for starting MATLAB by matlab-proxy.
 
         Returns:
             [dict]: Containing keys as the Env variable names and values are its corresponding values.
@@ -980,16 +980,16 @@ class AppState:
             if self.settings.get("matlab_display", None):
                 matlab_env["DISPLAY"] = self.settings["matlab_display"]
                 logger.debug(
-                    f"Using the display number supplied by Xvfb process'{matlab_env['DISPLAY']}' for launching MATLAB"
+                    f"Using the display number supplied by Xvfb process'{matlab_env['DISPLAY']}' for starting MATLAB"
                 )
             else:
                 if "DISPLAY" in matlab_env:
                     logger.debug(
-                        f"Using the existing DISPLAY environment variable with value:{matlab_env['DISPLAY']} for launching MATLAB"
+                        f"Using the existing DISPLAY environment variable with value:{matlab_env['DISPLAY']} for starting MATLAB"
                     )
                 else:
                     logger.debug(
-                        "No DISPLAY environment variable found. Launching MATLAB without it."
+                        "No DISPLAY environment variable found. Starting MATLAB without it."
                     )
 
         # The matlab ready file is written into this location(self.mwi_logs_dir) by MATLAB
@@ -1080,11 +1080,11 @@ class AppState:
 
             return xvfb
 
-        # If something went wrong ie. exception is raised in launching Xvfb process, capture error for logging
+        # If something went wrong ie. exception is raised in starting Xvfb process, capture error for logging
         # and for showing the error on the frontend.
 
         # FileNotFoundError: is thrown if Xvfb is not found on System Path.
-        # XvfbError: is thrown if something went wrong when launching Xvfb process.
+        # XvfbError: is thrown if something went wrong when starting Xvfb process.
         except (FileNotFoundError, XvfbError) as err:
             self.error = XvfbError(
                 """Unable to start the Xvfb process. Ensure Xvfb is installed and is available on the System Path. See https://github.com/mathworks/matlab-proxy#requirements for information on Xvfb"""
@@ -1178,7 +1178,7 @@ class AppState:
                 else:
                     time_diff = time.time() - self.embedded_connector_start_time
                     if time_diff > self.PROCESS_TIMEOUT:
-                        # Since max allowed startup time has elapsed, it means that MATLAB is stuck and is unable to launch.
+                        # Since max allowed startup time has elapsed, it means that MATLAB is stuck and is unable to start.
                         # Set the error and stop matlab.
                         user_visible_error = "Unable to start MATLAB.\nTry again by clicking Start MATLAB."
 
@@ -1195,7 +1195,7 @@ class AppState:
                             continue
 
                         else:
-                            # If there are no logs after the max startup time has elapsed, it means that MATLAB is stuck and is unable to launch.
+                            # If there are no logs after the max startup time has elapsed, it means that MATLAB is stuck and is unable to start.
                             # Set the error and stop matlab.
                             logger.error(
                                 f":{this_task}: MATLAB did not start in {int(self.PROCESS_TIMEOUT)} seconds!"
@@ -1205,7 +1205,7 @@ class AppState:
                             await self.__force_stop_matlab(
                                 user_visible_error, this_task
                             )
-                            # Breaking out of the loop to end this task as matlab-proxy was unable to launch MATLAB successfully
+                            # Breaking out of the loop to end this task as matlab-proxy was unable to start MATLAB successfully
                             # even after waiting for self.PROCESS_TIMEOUT
                             break
 
