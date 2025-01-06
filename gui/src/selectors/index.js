@@ -1,7 +1,7 @@
 // Copyright 2020-2024 The MathWorks, Inc.
 
-import { createSelector } from 'reselect';
-import { STATUS_REQUEST_INTERVAL_MS, MAX_REQUEST_FAIL_COUNT } from '../constants';
+import { createSelector } from "reselect";
+import { STATUS_REQUEST_INTERVAL_MS, MAX_REQUEST_FAIL_COUNT } from "../constants";
 
 export const selectTutorialHidden = state => state.tutorialHidden;
 export const selectServerStatus = state => state.serverStatus;
@@ -33,7 +33,9 @@ export const selectMatlabBusyStatus = state => state.matlab.busyStatus;
 
 export const selectTriggerPosition = createSelector(
     state => state.triggerPosition,
-    pos => pos === null ? undefined : pos
+    pos => pos === null
+        ? undefined
+        : pos
 );
 
 export const selectHasFetchedEnvConfig = createSelector(
@@ -66,22 +68,22 @@ export const selectIsConnectionError = createSelector(
 
 export const selectMatlabUp = createSelector(
     selectMatlabStatus,
-    matlabStatus => matlabStatus === 'up'
+    matlabStatus => matlabStatus === "up"
 );
 
 export const selectMatlabStarting = createSelector(
     selectMatlabStatus,
-    matlabStatus => matlabStatus === 'starting'
+    matlabStatus => matlabStatus === "starting"
 );
 
 export const selectMatlabStopping = createSelector(
     selectMatlabStatus,
-    matlabStatus => matlabStatus === 'stopping'
+    matlabStatus => matlabStatus === "stopping"
 );
 
 export const selectMatlabDown = createSelector(
     selectMatlabStatus,
-    matlabStatus => matlabStatus === 'down'
+    matlabStatus => matlabStatus === "down"
 );
 
 export const selectOverlayHidable = createSelector(
@@ -89,7 +91,7 @@ export const selectOverlayHidable = createSelector(
     selectIsError,
     selectAuthEnabled,
     selectIsAuthenticated,
-    (matlabStatus, isError, authRequired, isAuthenticated) => ((matlabStatus === 'up') && !isError && (!authRequired || isAuthenticated))
+    (matlabStatus, isError, authRequired, isAuthenticated) => ((matlabStatus === "up") && !isError && (!authRequired || isAuthenticated))
 );
 
 export const selectOverlayVisibility = createSelector(
@@ -124,19 +126,21 @@ export const selectFetchStatusPeriod = createSelector(
 
 export const selectLicensingProvided = createSelector(
     selectLicensingInfo,
-    licensingInfo => Object.prototype.hasOwnProperty.call(licensingInfo, 'type')
+    licensingInfo => Object.prototype.hasOwnProperty.call(licensingInfo, "type")
 );
 
 export const selectLicensingIsMhlm = createSelector(
     selectLicensingInfo,
     selectLicensingProvided,
-    (licensingInfo, licensingProvided) => licensingProvided && licensingInfo.type === 'mhlm'
+    (licensingInfo, licensingProvided) => licensingProvided && licensingInfo.type === "mhlm"
 );
 
 export const selectLicensingMhlmUsername = createSelector(
     selectLicensingInfo,
     selectLicensingIsMhlm,
-    (licensingInfo, isMhlm) => isMhlm ? licensingInfo.emailAddress : ''
+    (licensingInfo, isMhlm) => isMhlm
+        ? licensingInfo.emailAddress
+        : ""
 );
 
 // Selector to check if the license type is mhlm and entitlements property is not empty
@@ -157,7 +161,7 @@ export const selectIsEntitled = createSelector(
 // temporarily inaccessible
 export const selectMatlabPending = createSelector(
     selectMatlabStatus,
-    matlabStatus => matlabStatus === 'starting'
+    matlabStatus => matlabStatus === "starting"
 );
 
 export const selectOverlayVisible = createSelector(
@@ -172,7 +176,7 @@ export const selectIsInvalidTokenError = createSelector(
     selectIsError,
     selectError,
     (authEnabled, isAuthenticated, isError, error) => {
-        if ((authEnabled && !isAuthenticated) && isError && error.type === 'InvalidTokenError') {
+        if ((authEnabled && !isAuthenticated) && isError && error.type === "InvalidTokenError") {
             return true;
         }
         return false;
@@ -190,52 +194,52 @@ export const selectInformationDetails = createSelector(
         // to see if HTTP Requests are timing out.
         if (isError && error.statusCode === 408) {
             return {
-                icon: 'warning',
-                alert: 'warning',
-                label: 'Unknown'
+                "icon": "warning",
+                "alert": "warning",
+                "label": "Unknown"
             };
         }
 
         if (isError && authEnabled && isInvalidTokenError) {
             return {
-                icon: 'warning',
-                alert: 'warning',
-                label: 'Invalid Token supplied'
+                "icon": "warning",
+                "alert": "warning",
+                "label": "Invalid Token supplied"
             };
         }
 
         // Check status of MATLAB for errors
         switch (matlabStatus) {
-            case 'up':
+            case "up":
                 return {
-                    label: 'Running',
-                    icon: 'success',
-                    alert: 'success'
+                    "label": "Running",
+                    "icon": "success",
+                    "alert": "success"
                 };
-            case 'starting':
+            case "starting":
                 return {
-                    label: 'Starting. This may take several minutes.',
-                    icon: 'info-reverse',
-                    alert: 'info',
-                    spinner: true
+                    "label": "Starting. This may take several minutes.",
+                    "icon": "info-reverse",
+                    "alert": "info",
+                    "spinner": true
                 };
 
-            case 'stopping':
+            case "stopping":
                 return {
-                    label: 'Stopping',
-                    icon: 'info-reverse',
-                    alert: 'info',
-                    spinner: true
+                    "label": "Stopping",
+                    "icon": "info-reverse",
+                    "alert": "info",
+                    "spinner": true
                 };
-            case 'down': {
+            case "down": {
                 const detail = {
-                    label: 'Not running',
-                    icon: 'info-reverse',
-                    alert: 'info'
+                    "label": "Not running",
+                    "icon": "info-reverse",
+                    "alert": "info"
                 };
                 if (isError) {
-                    detail.icon = 'error';
-                    detail.alert = 'danger';
+                    detail.icon = "error";
+                    detail.alert = "danger";
                 }
                 return detail;
             }
@@ -247,7 +251,7 @@ export const selectInformationDetails = createSelector(
 
 export const selectIsMatlabBusy = createSelector(
     selectMatlabBusyStatus,
-    matlabBusyStatus => matlabBusyStatus === 'busy'
+    matlabBusyStatus => matlabBusyStatus === "busy"
 );
 
 export const selectIsIdleTimeoutEnabled = createSelector(
@@ -258,7 +262,9 @@ export const selectIsIdleTimeoutEnabled = createSelector(
 export const selectIdleTimeoutDurationInMS = createSelector(
     selectIsIdleTimeoutEnabled,
     selectIdleTimeoutDuration,
-    (isTimeoutEnabled, idleTimeoutDuration) => { return isTimeoutEnabled ? idleTimeoutDuration * 1000 : undefined; }
+    (isTimeoutEnabled, idleTimeoutDuration) => { return isTimeoutEnabled
+        ? idleTimeoutDuration * 1000
+        : undefined; }
 );
 
 export const selectIntegrationName = createSelector(
@@ -266,9 +272,11 @@ export const selectIntegrationName = createSelector(
     selectEnvConfig,
     (hasFetchedEnvConfig, envConfig) => {
         if (hasFetchedEnvConfig) {
-            return envConfig.extension_name === 'default_configuration_matlab_proxy' ? envConfig.extension_name_short_description : `${envConfig.extension_name_short_description} - MATLAB Integration`;
+            return envConfig.extension_name === "default_configuration_matlab_proxy"
+                ? envConfig.extension_name_short_description
+                : `${envConfig.extension_name_short_description} - MATLAB Integration`;
         } else {
-            return '';
+            return "";
         }
     }
 );
@@ -277,6 +285,8 @@ export const selectShouldShowShutdownButton = createSelector(
     selectHasFetchedEnvConfig,
     selectEnvConfig,
     (hasFetchedEnvConfig, envConfig) => {
-        return hasFetchedEnvConfig ? envConfig.should_show_shutdown_button : false;
+        return hasFetchedEnvConfig
+            ? envConfig.should_show_shutdown_button
+            : false;
     }
 );

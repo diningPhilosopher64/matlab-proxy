@@ -26,34 +26,34 @@ import {
     WAS_EVER_ACTIVE,
     REQUEST_SESSION_STATUS,
     SET_CLIENT_ID
-} from '../actions';
+} from "../actions";
 import {
     selectMatlabPending,
     selectIsConcurrencyEnabled,
     selectClientId,
     selectAuthEnabled,
     selectIsAuthenticated
-} from '../selectors';
-import sha256 from 'crypto-js/sha256';
-import { MWI_AUTH_TOKEN_NAME_FOR_HTTP } from '../constants';
+} from "../selectors";
+import sha256 from "crypto-js/sha256";
+import { MWI_AUTH_TOKEN_NAME_FOR_HTTP } from "../constants";
 
 export function setAuthStatus (authentication) {
     return {
-        type: SET_AUTH_STATUS,
+        "type": SET_AUTH_STATUS,
         authentication
     };
 }
 
 export function setAuthToken (authentication) {
     return {
-        type: SET_AUTH_TOKEN,
+        "type": SET_AUTH_TOKEN,
         authentication
     };
 }
 
 export function setTriggerPosition (x, y) {
     return {
-        type: SET_TRIGGER_POSITION,
+        "type": SET_TRIGGER_POSITION,
         x,
         y
     };
@@ -61,56 +61,56 @@ export function setTriggerPosition (x, y) {
 
 export function setTutorialHidden (hidden) {
     return {
-        type: SET_TUTORIAL_HIDDEN,
+        "type": SET_TUTORIAL_HIDDEN,
         hidden
     };
 }
 
 export function setOverlayVisibility (visibility) {
     return {
-        type: SET_OVERLAY_VISIBILITY,
+        "type": SET_OVERLAY_VISIBILITY,
         visibility
     };
 }
 
 export function setClientId (clientId) {
     return {
-        type: SET_CLIENT_ID,
+        "type": SET_CLIENT_ID,
         clientId
     };
 }
 
 export function requestServerStatus () {
     return {
-        type: REQUEST_SERVER_STATUS
+        "type": REQUEST_SERVER_STATUS
     };
 }
 
 export function wasEverActive () {
     return {
-        type: WAS_EVER_ACTIVE
+        "type": WAS_EVER_ACTIVE
     };
 }
 
 export function receiveServerStatus (status) {
     return function (dispatch, getState) {
         return dispatch({
-            type: RECEIVE_SERVER_STATUS,
+            "type": RECEIVE_SERVER_STATUS,
             status,
-            previousMatlabPending: selectMatlabPending(getState())
+            "previousMatlabPending": selectMatlabPending(getState())
         });
     };
 }
 export function requestSessionStatus () {
     return {
-        type: REQUEST_SESSION_STATUS
+        "type": REQUEST_SESSION_STATUS
     };
 }
 
 export function receiveSessionStatus (status) {
     return function (dispatch, getState) {
         return dispatch({
-            type: RECEIVE_SESSION_STATUS,
+            "type": RECEIVE_SESSION_STATUS,
             status
         });
     };
@@ -118,88 +118,88 @@ export function receiveSessionStatus (status) {
 
 export function requestEnvConfig () {
     return {
-        type: REQUEST_ENV_CONFIG
+        "type": REQUEST_ENV_CONFIG
     };
 }
 
 export function receiveEnvConfig (config) {
     return {
-        type: RECEIVE_ENV_CONFIG,
+        "type": RECEIVE_ENV_CONFIG,
         config
     };
 }
 
 export function receiveConcurrencyCheck (config) {
     return {
-        type: RECEIVE_CONCURRENCY_CHECK,
+        "type": RECEIVE_CONCURRENCY_CHECK,
         config
     };
 }
 
 export function requestSetLicensing () {
     return {
-        type: REQUEST_SET_LICENSING
+        "type": REQUEST_SET_LICENSING
     };
 }
 
 export function receiveSetLicensing (status) {
     return {
-        type: RECEIVE_SET_LICENSING,
+        "type": RECEIVE_SET_LICENSING,
         status
     };
 }
 
 export function requestUpdateLicensing () {
     return {
-        type: REQUEST_UPDATE_LICENSING
+        "type": REQUEST_UPDATE_LICENSING
     };
 }
 
 export function receiveUpdateLicensing (status) {
     return {
-        type: RECEIVE_UPDATE_LICENSING,
+        "type": RECEIVE_UPDATE_LICENSING,
         status
     };
 }
 
 export function requestShutdownIntegration () {
     return {
-        type: REQUEST_SHUTDOWN_INTEGRATION
+        "type": REQUEST_SHUTDOWN_INTEGRATION
     };
 }
 
 export function receiveShutdownIntegration (status) {
     return {
-        type: RECEIVE_SHUTDOWN_INTEGRATION,
+        "type": RECEIVE_SHUTDOWN_INTEGRATION,
         status,
-        loadUrl: '../'
+        "loadUrl": "../"
     };
 }
 
 export function requestStopMatlab () {
     return {
-        type: REQUEST_STOP_MATLAB,
-        status: 'stopping'
+        "type": REQUEST_STOP_MATLAB,
+        "status": "stopping"
     };
 }
 
 export function receiveStopMatlab (status) {
     return {
-        type: RECEIVE_STOP_MATLAB,
+        "type": RECEIVE_STOP_MATLAB,
         status
     };
 }
 
 export function requestStartMatlab () {
     return {
-        type: REQUEST_START_MATLAB,
-        status: 'starting'
+        "type": REQUEST_START_MATLAB,
+        "status": "starting"
     };
 }
 
 export function receiveStartMatlab (status) {
     return {
-        type: RECEIVE_START_MATLAB,
+        "type": RECEIVE_START_MATLAB,
         status
     };
 }
@@ -208,7 +208,7 @@ export function receiveStartMatlab (status) {
 // failures?
 export function receiveError (error, statusCode) {
     return {
-        type: RECEIVE_ERROR,
+        "type": RECEIVE_ERROR,
         error,
         statusCode
     };
@@ -222,18 +222,18 @@ export async function fetchWithTimeout (dispatch, resource, options = {}, timeou
     try {
         const response = await fetch(resource, {
             ...options,
-            signal: controller.signal
+            "signal": controller.signal
         });
         clearTimeout(id);
 
         return response;
     } catch (err) {
-        const errorText = 'Check your internet connection and verify that the server is running.';
+        const errorText = "Check your internet connection and verify that the server is running.";
         // If AbortController is aborted, then AbortError exception is raised due to time out.
-        if (err.name === 'AbortError' || err.name === 'TypeError') {
+        if (err.name === "AbortError" || err.name === "TypeError") {
             dispatch(receiveError(`HTTP Error 408 - Request Timeout. ${errorText}`, 408));
         } else {
-            dispatch(receiveError('Communication with server failed.', 500));
+            dispatch(receiveError("Communication with server failed.", 500));
         }
     }
 }
@@ -247,19 +247,19 @@ export function fetchServerStatus (requestTransferSession = false) {
         const clientId = clientIdInState;
 
         dispatch(requestServerStatus());
-        let url = './get_status';
+        let url = "./get_status";
 
         if ((!isAuthEnabled || isAuthenticated) && isConcurrencyEnabled) {
             url = `${url}?IS_DESKTOP=TRUE`;
 
             if (isConcurrencyEnabled && clientId) {
                 const params = new URLSearchParams();
-                params.append('MWI_CLIENT_ID', encodeURIComponent(clientId));
+                params.append("MWI_CLIENT_ID", encodeURIComponent(clientId));
 
                 if (requestTransferSession) {
-                    params.append('TRANSFER_SESSION', encodeURIComponent(requestTransferSession));
+                    params.append("TRANSFER_SESSION", encodeURIComponent(requestTransferSession));
                 }
-                url = url + '&' + params.toString();
+                url = url + "&" + params.toString();
             }
         }
 
@@ -271,7 +271,7 @@ export function fetchServerStatus (requestTransferSession = false) {
         if (clientId == null && data.clientId) {
             dispatch(setClientId(data.clientId));
         }
-        if ('isActiveClient' in data) {
+        if ("isActiveClient" in data) {
             dispatch(receiveSessionStatus(data));
             if (data.isActiveClient === true) {
                 dispatch(wasEverActive());
@@ -283,7 +283,7 @@ export function fetchServerStatus (requestTransferSession = false) {
 export function fetchEnvConfig () {
     return async function (dispatch, getState) {
         dispatch(requestEnvConfig());
-        const response = await fetchWithTimeout(dispatch, './get_env_config', {}, 10000);
+        const response = await fetchWithTimeout(dispatch, "./get_env_config", {}, 10000);
         const data = await response.json();
         dispatch(receiveEnvConfig(data));
     };
@@ -294,12 +294,12 @@ export function updateAuthStatus (token) {
     return async function (dispatch, getState) {
         const tokenHash = sha256(token);
         const options = {
-            method: 'POST',
-            headers: {
+            "method": "POST",
+            "headers": {
                 [MWI_AUTH_TOKEN_NAME_FOR_HTTP]: tokenHash
             }
         };
-        const response = await fetchWithTimeout(dispatch, './authenticate', options, 15000);
+        const response = await fetchWithTimeout(dispatch, "./authenticate", options, 15000);
         const data = await response.json();
 
         dispatch(setAuthStatus(data));
@@ -310,9 +310,9 @@ export function getAuthToken () {
     // make response consistent with rest of reducers (data)
     return async function (dispatch, getState) {
         const options = {
-            method: 'GET'
+            "method": "GET"
         };
-        const response = await fetchWithTimeout(dispatch, './get_auth_token', options, 10000);
+        const response = await fetchWithTimeout(dispatch, "./get_auth_token", options, 10000);
         const data = await response.json();
         dispatch(setAuthToken(data));
     };
@@ -321,18 +321,18 @@ export function getAuthToken () {
 export function fetchSetLicensing (info) {
     return async function (dispatch, getState) {
         const options = {
-            method: 'PUT',
-            mode: 'same-origin',
-            cache: 'no-cache',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json'
+            "method": "PUT",
+            "mode": "same-origin",
+            "cache": "no-cache",
+            "credentials": "same-origin",
+            "headers": {
+                "Content-Type": "application/json"
             },
-            body: JSON.stringify(info)
+            "body": JSON.stringify(info)
         };
 
         dispatch(requestSetLicensing());
-        const response = await fetchWithTimeout(dispatch, './set_licensing_info', options, 15000);
+        const response = await fetchWithTimeout(dispatch, "./set_licensing_info", options, 15000);
         const data = await response.json();
         dispatch(receiveSetLicensing(data));
     };
@@ -341,18 +341,18 @@ export function fetchSetLicensing (info) {
 export function fetchUpdateLicensing (info) {
     return async function (dispatch, getState) {
         const options = {
-            method: 'PUT',
-            mode: 'same-origin',
-            cache: 'no-cache',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json'
+            "method": "PUT",
+            "mode": "same-origin",
+            "cache": "no-cache",
+            "credentials": "same-origin",
+            "headers": {
+                "Content-Type": "application/json"
             },
-            body: JSON.stringify(info)
+            "body": JSON.stringify(info)
         };
 
         dispatch(requestUpdateLicensing());
-        const response = await fetchWithTimeout(dispatch, './update_entitlement', options, 1500);
+        const response = await fetchWithTimeout(dispatch, "./update_entitlement", options, 1500);
         const data = await response.json();
         dispatch(receiveUpdateLicensing(data));
     };
@@ -361,14 +361,14 @@ export function fetchUpdateLicensing (info) {
 export function fetchUnsetLicensing () {
     return async function (dispatch, getState) {
         const options = {
-            method: 'DELETE',
-            mode: 'same-origin',
-            cache: 'no-cache',
-            credentials: 'same-origin'
+            "method": "DELETE",
+            "mode": "same-origin",
+            "cache": "no-cache",
+            "credentials": "same-origin"
         };
 
         dispatch(requestSetLicensing());
-        const response = await fetchWithTimeout(dispatch, './set_licensing_info', options, 15000);
+        const response = await fetchWithTimeout(dispatch, "./set_licensing_info", options, 15000);
         const data = await response.json();
         dispatch(receiveSetLicensing(data));
     };
@@ -377,14 +377,14 @@ export function fetchUnsetLicensing () {
 export function fetchShutdownIntegration () {
     return async function (dispatch, getState) {
         const options = {
-            method: 'DELETE',
-            mode: 'same-origin',
-            cache: 'no-cache',
-            credentials: 'same-origin'
+            "method": "DELETE",
+            "mode": "same-origin",
+            "cache": "no-cache",
+            "credentials": "same-origin"
         };
 
         dispatch(requestShutdownIntegration());
-        const response = await fetchWithTimeout(dispatch, './shutdown_integration', options, 15000);
+        const response = await fetchWithTimeout(dispatch, "./shutdown_integration", options, 15000);
         const data = await response.json();
         dispatch(receiveShutdownIntegration(data));
     };
@@ -393,14 +393,14 @@ export function fetchShutdownIntegration () {
 export function fetchStopMatlab () {
     return async function (dispatch, getState) {
         const options = {
-            method: 'DELETE',
-            mode: 'same-origin',
-            cache: 'no-cache',
-            credentials: 'same-origin'
+            "method": "DELETE",
+            "mode": "same-origin",
+            "cache": "no-cache",
+            "credentials": "same-origin"
         };
 
         dispatch(requestStopMatlab());
-        const response = await fetchWithTimeout(dispatch, './stop_matlab', options, 30000);
+        const response = await fetchWithTimeout(dispatch, "./stop_matlab", options, 30000);
         const data = await response.json();
         dispatch(receiveStopMatlab(data));
     };
@@ -409,18 +409,18 @@ export function fetchStopMatlab () {
 export function fetchStartMatlab () {
     return async function (dispatch, getState) {
         const options = {
-            method: 'PUT',
-            mode: 'same-origin',
-            cache: 'no-cache',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json'
+            "method": "PUT",
+            "mode": "same-origin",
+            "cache": "no-cache",
+            "credentials": "same-origin",
+            "headers": {
+                "Content-Type": "application/json"
             },
-            body: JSON.stringify({})
+            "body": JSON.stringify({})
         };
 
         dispatch(requestStartMatlab());
-        const response = await fetchWithTimeout(dispatch, './start_matlab', options, 15000);
+        const response = await fetchWithTimeout(dispatch, "./start_matlab", options, 15000);
         const data = await response.json();
         dispatch(receiveStartMatlab(data));
     };

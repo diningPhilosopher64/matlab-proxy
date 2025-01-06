@@ -1,6 +1,6 @@
 // Copyright 2020-2024 The MathWorks, Inc.
 
-import { combineReducers } from 'redux';
+import { combineReducers } from "redux";
 
 // ACTIONS
 import {
@@ -28,7 +28,7 @@ import {
     REQUEST_SESSION_STATUS,
     RECEIVE_CONCURRENCY_CHECK,
     WAS_EVER_ACTIVE
-} from '../actions';
+} from "../actions";
 
 // Stores info on whether token authentication enabled on the backend.
 // This is enforced by the backend.
@@ -104,10 +104,10 @@ export function isConcurrencyEnabled (state = false, action) {
     }
 }
 
-export function triggerPosition (state = { x: window.innerWidth / 2 + 27, y: 0 }, action) {
+export function triggerPosition (state = { "x": window.innerWidth / 2 + 27, "y": 0 }, action) {
     switch (action.type) {
         case SET_TRIGGER_POSITION:
-            return { x: action.x, y: action.y };
+            return { "x": action.x, "y": action.y };
         default:
             return state;
     }
@@ -129,7 +129,7 @@ export function overlayVisibility (state = false, action) {
         case RECEIVE_SERVER_STATUS:
             if (
                 action.previousMatlabPending === true &&
-                action.status.matlab.status === 'up'
+                action.status.matlab.status === "up"
             ) return false;
         // fall through
         default:
@@ -152,7 +152,7 @@ export function licensingInfo (state = {}, action) {
     }
 }
 
-export function matlabStatus (state = 'down', action) {
+export function matlabStatus (state = "down", action) {
     switch (action.type) {
         case RECEIVE_SERVER_STATUS:
         case RECEIVE_SET_LICENSING:
@@ -336,7 +336,9 @@ export function warnings (state = null, action) {
     switch (action.type) {
         case RECEIVE_SERVER_STATUS: {
             const warnings = action.status.warnings;
-            return warnings.length > 0 ? warnings : null;
+            return warnings.length > 0
+                ? warnings
+                : null;
         }
         default:
             return state;
@@ -351,14 +353,14 @@ export function error (state = null, action) {
                 return {
                     message,
                     type,
-                    logs: null
+                    "logs": null
                 };
             } else return null;
         case RECEIVE_ERROR:
             return {
-                message: action.error,
-                statusCode: action?.statusCode,
-                logs: null
+                "message": action.error,
+                "statusCode": action?.statusCode,
+                "logs": null
             };
         case RECEIVE_SERVER_STATUS:
         case RECEIVE_SET_LICENSING:
@@ -367,9 +369,9 @@ export function error (state = null, action) {
         case RECEIVE_START_MATLAB:
             return action.status.error
                 ? {
-                    message: action.status.error.message,
-                    logs: action.status.error.logs,
-                    type: action.status.error.type
+                    "message": action.status.error.message,
+                    "logs": action.status.error.logs,
+                    "type": action.status.error.type
                 }
                 : null;
         default:
@@ -401,16 +403,16 @@ export function clientId (state = null, action) {
 }
 
 export const authentication = combineReducers({
-    enabled: authEnabled,
-    status: authStatus,
-    token: authToken
+    "enabled": authEnabled,
+    "status": authStatus,
+    "token": authToken
 });
 
 export const matlab = combineReducers({
-    status: matlabStatus,
-    versionOnPath: matlabVersionOnPath,
-    supportedVersions: supportedMatlabVersions,
-    busyStatus: matlabBusyStatus,
+    "status": matlabStatus,
+    "versionOnPath": matlabVersionOnPath,
+    "supportedVersions": supportedMatlabVersions,
+    "busyStatus": matlabBusyStatus,
     useMOS,
     useMRE
 });
