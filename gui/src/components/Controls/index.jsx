@@ -1,6 +1,6 @@
 // Copyright 2020-2024 The MathWorks, Inc.
 
-import React, { useEffect, useRef } from "react";
+import React, { useRef } from "react";
 import PropTypes from "prop-types";
 import { useSelector } from "react-redux";
 import  {Tooltip as ReactTooltip} from "react-tooltip";
@@ -56,11 +56,6 @@ function Controls ({
     const isEntitled = useSelector(selectIsEntitled);
 
     const shouldShowShutdownButton = useSelector(selectShouldShowShutdownButton);
-
-    // Adds tooltips back for conditionally rendered buttons.
-    // useEffect(() => {
-    //     ReactTooltip.rebuild();
-    // }, [shouldShowShutdownButton, licensed]);
 
     let licensingData, licensingConfirmationMessage;
     switch (licensingInfo?.type) {
