@@ -7,7 +7,7 @@ import nodePlugin from 'eslint-plugin-node'
 import vitestPlugin from 'eslint-plugin-vitest'
 import fs from 'fs'
 
-const eslintrcJson = JSON.parse(fs.readFileSync('./eslintrc.json', 'utf8'))
+const eslintrcJson = JSON.parse(fs.readFileSync('./.eslintrc.json', 'utf8'))
 
 
 function cleanGlobals(globalsObject) {

@@ -5,11 +5,11 @@
   ],
   "plugins": [
     "react",
-    "jest",
-    "testing-library"
+    "testing-library",
+    "node"
   ],
   "env": {
-    "jest/globals": true,
+    "vitest/globals": true,
     "browser": true
   },
   "rules": {
