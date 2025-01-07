@@ -7,10 +7,6 @@ html body {
   overflow: hidden;
 }
 
-#root {
-  height: 100vh;
-}
-
 .main {
   height: 100%;
 }
