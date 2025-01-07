@@ -194,14 +194,6 @@ export function matlabBusyStatus (state = null, action) {
     }
 }
 
-export function supportedMatlabVersions (state = null, action) {
-    switch (action.type) {
-        case RECEIVE_ENV_CONFIG:
-            return action.config.matlab.supportedVersions;
-        default:
-            return state;
-    }
-}
 export function isActiveClient (state = true, action) {
     switch (action.type) {
         case RECEIVE_SESSION_STATUS:
@@ -411,7 +403,6 @@ export const authentication = combineReducers({
 export const matlab = combineReducers({
     "status": matlabStatus,
     "versionOnPath": matlabVersionOnPath,
-    "supportedVersions": supportedMatlabVersions,
     "busyStatus": matlabBusyStatus,
     useMOS,
     useMRE

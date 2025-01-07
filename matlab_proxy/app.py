@@ -208,7 +208,6 @@ async def get_env_config(req):
 
     config["matlab"] = {
         "version": state.settings["matlab_version"],
-        "supportedVersions": constants.SUPPORTED_MATLAB_VERSIONS,
     }
 
     # Send timeout duration for the idle timer as part of the response

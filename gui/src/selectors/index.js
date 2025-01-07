@@ -8,7 +8,6 @@ export const selectServerStatus = state => state.serverStatus;
 export const selectSessionStatus = state => state.sessionStatus;
 export const selectMatlabStatus = state => state.matlab.status;
 export const selectMatlabVersionOnPath = state => state.matlab.versionOnPath;
-export const selectSupportedMatlabVersions = state => state.matlab.supportedVersions;
 export const selectEnvConfig = state => state.envConfig;
 export const selectWsEnv = state => state.serverStatus.wsEnv;
 export const selectSubmittingServerStatus = state => state.serverStatus.isSubmitting;

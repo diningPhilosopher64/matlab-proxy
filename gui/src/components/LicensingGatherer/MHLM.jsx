@@ -1,13 +1,12 @@
 // Copyright 2020-2024 The MathWorks, Inc.
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import PropTypes from "prop-types";
 import {
     selectLicensingMhlmUsername,
     selectWsEnv,
     selectMatlabVersionOnPath,
-    selectSupportedMatlabVersions
 } from "../../selectors";
 import {
     fetchSetLicensing
@@ -66,18 +65,27 @@ function initLogin (clientNonce, serverNonce, sourceId) {
     loginFrame.postMessage(JSON.stringify(initPayload), "*");
 }
 
+const versionRegex = /^[Rr]\d{4}[ab]$/
+
+function validateInput(matlabVersion) {    
+    return versionRegex.test(matlabVersion)
+} 
+
 // Adding a child prop with null as default for improved testability.
 function MHLM ({ mhlmLicensingInfo = null }) {
+    const matlabVersionRef = useRef(null);
     const dispatch = useDispatch();
     const username = useSelector(selectLicensingMhlmUsername);
     const wsEnv = useSelector(selectWsEnv);
     const matlabVersionOnPath = useSelector(selectMatlabVersionOnPath);
-    const supportedMatlabVersions = useSelector(selectSupportedMatlabVersions);
 
     const [iFrameLoaded, setIFrameLoaded] = useState(false);
     // useState variable to store response from mhlm after authentication
     const [fetchedMhlmLicensingInfo, setFetchedMhlmLicensingInfo] = useState(mhlmLicensingInfo);
-    const [selectedMatlabVersion, setSelectedMatlabVersion] = useState(supportedMatlabVersions[supportedMatlabVersions.length - 1]);
+
+    const [matlabVersionInput, setMatlabVersionInput] = useState("");
+    const [changed, setChanged] = useState(false);
+    const valid = validateInput(matlabVersionInput)
 
     const mhlmLoginHostname = useMemo(
         () => {
@@ -163,31 +171,46 @@ function MHLM ({ mhlmLicensingInfo = null }) {
 
     const submitForm = (event) => {
         event.preventDefault();
-        dispatch(fetchSetLicensing({ ...fetchedMhlmLicensingInfo, "matlabVersion": selectedMatlabVersion }));
+        dispatch(fetchSetLicensing({ ...fetchedMhlmLicensingInfo, "matlabVersion": matlabVersionRef.current.value }));
     };
 
     const chooseMatlabVersionDropDown = (
         <div id="ChooseMatlabVersion">
-            <form onSubmit={submitForm}>
-                <div className='form-group'>
-                    <p>
-                        <b>Note</b>: The version of MATLAB could not be determined. Choose the version of MATLAB you are attempting to start.
-                    </p>
-                    <br/>
-                    <select value={selectedMatlabVersion} onChange={(e) => setSelectedMatlabVersion(e.target.value)}>
-                        {supportedMatlabVersions.map((matlabVersion, index) => (
-                            <option key={index} value={matlabVersion}>
-                                {matlabVersion}
-                            </option>
-                        ))}
-                    </select>
-
-                    <br/><br/>
-
-                    <input type="submit" id="startMatlabBtn" value="Start MATLAB" className="btn btn_color_blue" />
-                </div>
-            </form>
-        </div>
+                <form onSubmit={submitForm}>
+                    <div className={`form-group has-feedback ${changed ? (valid ? 'has-success' : 'has-error') : ''}`}>                     
+                        <p>
+                            <b>Note</b>: The MATLAB version could not be determined. Enter the version of MATLAB you are attempting to start.
+                        </p>
+                        <br/>                   
+                        <label htmlFor="matlabVersion">MATLAB Version:</label>
+    
+    
+                        <div className="input-group">
+                            <input
+                            type="text"
+                            className="form-control"
+                            placeholder={'R20XYb'}
+                            id="matlabVersion"
+                            aria-invalid={!valid}
+                            ref={matlabVersionRef}
+                            value={matlabVersionInput}
+                            onChange={event => { setChanged(true); setMatlabVersionInput(event.target.value); }}
+                            />                        
+                            <span className="input-group-addon" >
+                            {valid ? (
+                                <span className="glyphicon glyphicon-ok form-control-feedback" style={{ paddingLeft: '8px' }}></span>
+                            ) : (
+                                <span className="glyphicon glyphicon-remove form-control-feedback" style={{ paddingLeft: '8px' }}></span>
+                            )}
+                            </span>
+                        </div>
+    
+                        <br/><br/>
+    
+                        <input disabled={!valid} type="submit" id="startMatlabBtn" value="Submit" className="btn btn_color_blue" />
+                    </div>
+                </form>
+        </div>            
     );
 
     // Render MHLM iFrame if not authenticated and matlab version couldn't be determined

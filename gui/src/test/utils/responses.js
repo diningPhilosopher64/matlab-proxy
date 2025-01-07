@@ -33,7 +33,6 @@ export const getEnvConfigResponse = {
     "authentication": state.authentication,
     "matlab": {
         "version": state.matlab.versionOnPath,
-        "supportedVersions": state.matlab.supportedVersions
     },
     "idleTimeoutDuration": state.idleTimeoutDuration
 };

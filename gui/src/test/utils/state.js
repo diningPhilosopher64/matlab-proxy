@@ -40,7 +40,6 @@ const state = {
     "matlab": {
         "status": "up",
         "versionOnPath": "R2023b",
-        "supportedVersions": ["R2020b", "R2023b"],
         "busyStatus": "idle",
         "useMOS": false,
         "useMRE": false
