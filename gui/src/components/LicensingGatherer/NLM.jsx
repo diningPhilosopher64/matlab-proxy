@@ -1,7 +1,11 @@
 // Copyright 2020-2024 The MathWorks, Inc.
 
 import React, { useState } from "react";
-import { useDispatch } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { MatlabVersionInput } from "./MatlabVersionInput";
+import {
+    selectMatlabVersionOnPath,
+} from "../../selectors";
 import {
     fetchSetLicensing
 } from "../../actionCreators";
@@ -43,22 +47,28 @@ function NLM () {
     const dispatch = useDispatch();
     const [connStr, setConnStr] = useState("");
     const [changed, setChanged] = useState(false);
-
-    const valid = validateInput(connStr);
+    const matlabVersionOnPath = useSelector(selectMatlabVersionOnPath);
+    const validNLMString = validateInput(connStr);
+    const [isNLMFormSubmitted, setNLMFormSubmitted] = useState(false);
 
     function submitForm (event) {
         event.preventDefault();
-        dispatch(fetchSetLicensing({
-            "type": "nlm",
-            "connectionString": connStr
-        }));
+        setNLMFormSubmitted(true);
     }
 
-    return (
+    const setLicensingInfo = (userProvidedMatlabVersion) => {
+        dispatch(fetchSetLicensing({
+            "type": "nlm",
+            "connectionString": connStr,
+            "matlabVersion": userProvidedMatlabVersion
+        }));
+    };
+
+    const nlmForm = (
         <div id="NLM">
             <form onSubmit={submitForm}>
                 <div className={`form-group has-feedback ${changed
-                    ? (valid
+                    ? (validNLMString
                         ? "has-success"
                         : "has-error")
                     : ""}`}>
@@ -68,17 +78,23 @@ function NLM () {
                         required={true}
                         placeholder={"port@hostname"}
                         className="form-control"
-                        aria-invalid={!valid}
+                        aria-invalid={!validNLMString}
                         value={connStr}
                         onChange={event => { setChanged(true); setConnStr(event.target.value); }}
                     />
                     <span className="glyphicon form-control-feedback glyphicon-remove"></span>
                     <span className="glyphicon form-control-feedback glyphicon-ok"></span>
                 </div>
-                <input type="submit" id="submit" value="Submit" className="btn btn_color_blue" disabled={!valid} />
+                <input type="submit" id="submit" value="Submit" className="btn btn_color_blue" disabled={!validNLMString} />
             </form>
         </div>
     );
+
+    if(isNLMFormSubmitted && !matlabVersionOnPath){
+        return <MatlabVersionInput callback={setLicensingInfo}/>;
+    } else {
+        return nlmForm
+    }     
 }
 
 export default NLM;

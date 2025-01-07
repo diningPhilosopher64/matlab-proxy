@@ -1,6 +1,10 @@
 // Copyright 2023-2024 The MathWorks, Inc/
-import React from "react";
-import { useDispatch } from "react-redux";
+import React, { useState } from "react";
+import { useSelector, useDispatch } from "react-redux";
+import { MatlabVersionInput } from "./MatlabVersionInput";
+import {
+    selectMatlabVersionOnPath,
+} from "../../selectors";
 import {
     fetchSetLicensing
 } from "../../actionCreators";
@@ -8,15 +12,23 @@ import "./ExistingLicense.css";
 
 function ExistingLicense () {
     const dispatch = useDispatch();
+    const matlabVersionOnPath = useSelector(selectMatlabVersionOnPath);
+    const [isExistingLicenseFormSubmitted, setExistingLicenseFormSubmitted] = useState(false);    
+    
 
     function submitForm (event) {
         event.preventDefault();
-        dispatch(fetchSetLicensing({
-            "type": "existing_license"
-        }));
+        setExistingLicenseFormSubmitted(true);
     }
 
-    return (
+    const setLicensingInfo = (userProvidedMatlabVersion) => {
+        dispatch(fetchSetLicensing({
+            "type": "existing_license",
+            "matlabVersion": userProvidedMatlabVersion
+        }));
+    };
+
+    const existingLicenseForm = (
         <div id="ExistingLicense">
             <form onSubmit={submitForm}>
                 <div className='form-group'>
@@ -29,6 +41,12 @@ function ExistingLicense () {
             </form>
         </div>
     );
+
+    if(isExistingLicenseFormSubmitted && !matlabVersionOnPath){
+       return <MatlabVersionInput callback={setLicensingInfo}/>;
+    } else {
+        return existingLicenseForm
+    }
 }
 
 export default ExistingLicense;
