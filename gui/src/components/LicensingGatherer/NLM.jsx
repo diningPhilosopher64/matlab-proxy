@@ -85,7 +85,7 @@ function NLM () {
                     <span className="glyphicon form-control-feedback glyphicon-remove"></span>
                     <span className="glyphicon form-control-feedback glyphicon-ok"></span>
                 </div>
-                <input type="submit" id="submit" value="Submit" className="btn btn_color_blue" disabled={!validNLMString} />
+                <input type="submit" id="nlmSubmit" value="Submit" className="btn btn_color_blue" disabled={!validNLMString} />
             </form>
         </div>
     );

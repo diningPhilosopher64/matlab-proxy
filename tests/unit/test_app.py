@@ -312,7 +312,6 @@ async def test_get_env_config(test_server):
         "matlab": {
             "status": "up",
             "version": "R2023a",
-            "supportedVersions": ["R2020b", "R2023a"],
         },
         "doc_url": "foo",
         "extension_name": "bar",

@@ -36,7 +36,7 @@ function ExistingLicense () {
                         <b>Note</b>: Choose this option if you already have an activated MATLAB license. This option allows you to run MATLAB on your host machine without providing additional licensing information.
                     </p>
                     <br/>
-                    <input type="submit" id="submit" value="Start MATLAB" className="btn btn_color_blue" />
+                    <input type="submit" id="existingLicenseSubmit" value="Start MATLAB" className="btn btn_color_blue" />
                 </div>
             </form>
         </div>

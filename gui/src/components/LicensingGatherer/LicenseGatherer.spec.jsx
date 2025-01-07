@@ -66,25 +66,36 @@ describe("LicenseGatherer component", () => {
         expect(mhlmTabContent).toBeInTheDocument();
     });
 
-    it("should have rendered mhlm tab with the drop down to choose matlab version and start MATLAB button", () => {
+    it("should have rendered mhlm tab followed by MatlabVersionInput component when no matlab version is available", () => {
         const mockFetchSetLicensing = vi.spyOn(actionCreators, "fetchSetLicensing").mockImplementation(() => {
             return () => Promise.resolve();
         });
-        // Set matlab version to null for the matlab version drop-down to render
+        // Set matlab version to null for the matlab version input to render
         initialState.matlab.versionOnPath = null;
-        initialState.matlab.supportedVersions = ["R2020b", "R2021a"];
         const fetchedMhlmLicensingInfo = { "dummyValue": "yes" };
+        const matlabVersion = "R2024a"
 
         const { container } = render(<MHLM mhlmLicensingInfo={fetchedMhlmLicensingInfo}/>, { initialState });
 
+        // Check if the input tag for MATLAB version is rendered
+        const matlabVersionInput = container.querySelector("#matlabVersion");
+        expect(matlabVersionInput).toBeInTheDocument();
+        
+        fireEvent.change(matlabVersionInput, {target: {value: matlabVersion}});
+     
         const startMatlabBtn = container.querySelector("#startMatlabBtn");
-
         expect(startMatlabBtn).toBeInTheDocument();
 
         fireEvent.click(startMatlabBtn);
+
+        // Check if matlabVersion is being passed to /set_licensing_info endpiont
+        expect(mockFetchSetLicensing).toHaveBeenCalledWith({
+            ...fetchedMhlmLicensingInfo,
+            matlabVersion: matlabVersion
+        });
         mockFetchSetLicensing.mockRestore();
     });
-
+    
     it("should have rendered nlm tab content without crashing", () => {
         const { container } = render(<LicenseGatherer />, { initialState });
 
@@ -97,6 +108,56 @@ describe("LicenseGatherer component", () => {
         // Check if nlm tab is rendered.
         const nlmTabContent = container.querySelector("#NLM");
         expect(nlmTabContent).toBeInTheDocument();
+    });
+
+    it("should have rendered nlm tab followed by MatlabVersionInput component when no matlab version is available", () => {
+        const mockFetchSetLicensing = vi.spyOn(actionCreators, "fetchSetLicensing").mockImplementation(() => {
+            return () => Promise.resolve();
+        });
+        // Set matlab version to null for the matlab version input to render
+        initialState.matlab.versionOnPath = null;
+        const nlmConnectionsStr = '123@hostname'
+        const matlabVersion = "R2024a"
+        const nlmLicensingInfo = {
+            "type": "nlm",
+            "connectionString": nlmConnectionsStr,            
+        }
+
+        const { container } = render(<LicenseGatherer />, { initialState });
+
+        const nlmTab = container.querySelector("#nlm-tab");
+        // Click on nlm Tab
+        fireEvent.click(nlmTab);
+
+        // Check if nlm tab is rendered.
+        const nlmTabContent = container.querySelector("#NLM");
+        expect(nlmTabContent).toBeInTheDocument();
+        
+        const nlmInput = container.querySelector("#nlm-connection-string");
+        const nlmSubmitBtn = container.querySelector('#nlmSubmit')
+
+        fireEvent.change(nlmInput, {target: {value: nlmConnectionsStr}});
+        fireEvent.click(nlmSubmitBtn);
+
+        // Now MatlabVersionInput component will be rendered
+
+        // Check if the input tag for MATLAB version is rendered
+        const matlabVersionInput = container.querySelector("#matlabVersion");
+        expect(matlabVersionInput).toBeInTheDocument();
+        
+        fireEvent.change(matlabVersionInput, {target: {value: matlabVersion}});
+     
+        const startMatlabBtn = container.querySelector("#startMatlabBtn");
+        expect(startMatlabBtn).toBeInTheDocument();
+
+        fireEvent.click(startMatlabBtn);
+
+        // Check if matlabVersion is being passed to /set_licensing_info endpiont
+        expect(mockFetchSetLicensing).toHaveBeenCalledWith({
+            ...nlmLicensingInfo,
+            matlabVersion: matlabVersion
+        });
+        mockFetchSetLicensing.mockRestore();
     });
 
     it("should have rendered existing license tab content without crashing", () => {
@@ -113,6 +174,56 @@ describe("LicenseGatherer component", () => {
         expect(existingLicenseTabContent).toBeInTheDocument();
     });
 
+     it("should have rendered existing license tab followed by MatlabVersionInput component when no matlab version is available", () => {
+        const mockFetchSetLicensing = vi.spyOn(actionCreators, "fetchSetLicensing").mockImplementation(() => {
+            return () => Promise.resolve();
+        });
+        // Set matlab version to null for the matlab version input to render
+        initialState.matlab.versionOnPath = null;
+        // const nlmConnectionsStr = '123@hostname'
+        const matlabVersion = "R2024a"
+        const existingLicensingInfo = {
+            "type": "existing_license",
+        }
+
+        const { container, debug } = render(<LicenseGatherer />, { initialState });
+
+        const existingLicenseTab = container.querySelector("#existingLicense-tab");
+        expect(existingLicenseTab).toBeInTheDocument();
+
+        // Click on existingLicense Tab
+        fireEvent.click(existingLicenseTab);
+
+        // Check if existingLicense tab is rendered.
+        const existingLicenseTabContent = container.querySelector("#existingLicense");
+        expect(existingLicenseTabContent).toBeInTheDocument();
+        
+        const existingLicenseSubmitBtn = container.querySelector('#existingLicenseSubmit');
+        fireEvent.click(existingLicenseSubmitBtn);
+        fireEvent.click(existingLicenseSubmitBtn);
+
+
+        // Now MatlabVersionInput component will be rendered
+
+        // Check if the input tag for MATLAB version is rendered
+        const matlabVersionInput = container.querySelector("#matlabVersion");
+        expect(matlabVersionInput).toBeInTheDocument();
+        
+        fireEvent.change(matlabVersionInput, {target: {value: matlabVersion}});
+     
+        const startMatlabBtn = container.querySelector("#startMatlabBtn");
+        expect(startMatlabBtn).toBeInTheDocument();
+
+        fireEvent.click(startMatlabBtn);
+
+        // Check if matlabVersion is being passed to /set_licensing_info endpiont
+        expect(mockFetchSetLicensing).toHaveBeenCalledWith({
+            ...existingLicensingInfo,
+            matlabVersion: matlabVersion
+        });
+        mockFetchSetLicensing.mockRestore();
+    });
+
     test.each([
         ["1234", true], ["hostname", true], ["1234hostname", true], ["1234,", true], ["hostname,", true],
         ["1234@hostname", false], ["1234@hostname,4567@hostname", false], ["1234@hostname:4567@hostname", false],
@@ -125,7 +236,7 @@ describe("LicenseGatherer component", () => {
 
             const nlmTab = container.querySelector("#nlm-tab");
             const input = container.querySelector("#nlm-connection-string");
-            const submitButton = container.querySelector("#submit");
+            const submitButton = container.querySelector("#nlmSubmit");
 
             expect(nlmTab).toBeInTheDocument();
 
