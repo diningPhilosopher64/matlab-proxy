@@ -29,9 +29,10 @@ export default defineConfig({
         "globals": true, 
         "environment": "jsdom",
         "setupFiles": "./src/setupTests.js",
+        "reporters": 'vitest-teamcity-reporter',
         "coverage": {
             "provider": "v8",
-            "reporter": ["text", "json", "html", "lcov"],
+            "reporter": ["text", "json", "html", "lcov", "teamcity"],
             "reportsDirectory": "./coverage"
         }
     },
