@@ -1,4 +1,4 @@
-// Copyright 2024 The MathWorks, Inc.
+// Copyright 2024-2025 The MathWorks, Inc.
 
 // Dialog box that pops up when the main timer has expired.
 // The user can either resume or shutdown the current session of matlab proxy.

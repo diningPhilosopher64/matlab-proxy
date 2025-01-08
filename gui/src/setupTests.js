@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022 The MathWorks, Inc.
+// Copyright 2020-2025 The MathWorks, Inc.
 
 // jest-dom adds custom jest matchers for asserting on DOM nodes.
 // allows you to do things like:

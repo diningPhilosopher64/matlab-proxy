@@ -1,3 +1,5 @@
+// Copyright 2025 The MathWorks, Inc.
+
 import js from '@eslint/js'
 import globals from 'globals'
 import react from 'eslint-plugin-react'

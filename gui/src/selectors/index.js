@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The MathWorks, Inc.
+// Copyright 2020-2025 The MathWorks, Inc.
 
 import { createSelector } from "reselect";
 import { STATUS_REQUEST_INTERVAL_MS, MAX_REQUEST_FAIL_COUNT } from "../constants";

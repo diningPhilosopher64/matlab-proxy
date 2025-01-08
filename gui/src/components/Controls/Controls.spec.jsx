@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The MathWorks, Inc.
+// Copyright 2020-2025 The MathWorks, Inc.
 
 import React from "react";
 import Controls from "./index";

@@ -1,4 +1,5 @@
-// Copyright 2023-2024 The MathWorks, Inc/
+// Copyright 2023-2025 The MathWorks, Inc
+
 import React from "react";
 import { useDispatch } from "react-redux";
 import {

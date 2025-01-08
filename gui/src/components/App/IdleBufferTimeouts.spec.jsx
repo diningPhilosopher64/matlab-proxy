@@ -1,4 +1,4 @@
-// Copyright 2024 The MathWorks, Inc.
+// Copyright 2024-2025 The MathWorks, Inc.
 
 // File to test IDLE and BUFFER timeouts.
 // Need a seperate file for mocking BUFFER_TIMEOUT_DURATION before App component is imported for testing.
