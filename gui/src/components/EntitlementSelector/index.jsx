@@ -1,17 +1,17 @@
 // Copyright 2020-2025 The MathWorks, Inc.
 
-import React, { useState } from "react";
-import { useDispatch } from "react-redux";
-import { fetchUpdateLicensing } from "../../actionCreators";
-import PropTypes from "prop-types";
-export const defaultLicenseUnavailableMsg = "License description unavailable";
+import React, { useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { fetchUpdateLicensing } from '../../actionCreators';
+import PropTypes from 'prop-types';
+export const defaultLicenseUnavailableMsg = 'License description unavailable';
 
 export function filterAndFormatEntitlements (entitlements) {
     return entitlements
-        .filter(entitlement => entitlement.license_number && entitlement.license_number.trim() !== "")
+        .filter(entitlement => entitlement.license_number && entitlement.license_number.trim() !== '')
         .map(entitlement => ({
-            "label": `${entitlement.license_number} - ${entitlement.label || defaultLicenseUnavailableMsg}`,
-            "value": entitlement.id
+            label: `${entitlement.license_number} - ${entitlement.label || defaultLicenseUnavailableMsg}`,
+            value: entitlement.id
         }));
 }
 
@@ -24,8 +24,8 @@ function EntitlementSelector ({ options }) {
         event.preventDefault();
         dispatch(
             fetchUpdateLicensing({
-                "type": "mhlm",
-                "entitlement_id": selectedEntitlement
+                type: 'mhlm',
+                entitlement_id: selectedEntitlement
             })
         );
     }
@@ -73,6 +73,6 @@ function EntitlementSelector ({ options }) {
 }
 
 EntitlementSelector.propTypes = {
-    "options": PropTypes.arrayOf(PropTypes.object).isRequired
+    options: PropTypes.arrayOf(PropTypes.object).isRequired
 };
 export default EntitlementSelector;

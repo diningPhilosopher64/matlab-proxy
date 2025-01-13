@@ -1,21 +1,21 @@
 // Copyright 2020-2025 The MathWorks, Inc.
 
-import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useSelector, useDispatch } from "react-redux";
-import { useInterval, useTimeoutFn } from "react-use";
-import "./App.css";
-import "./3p/css/bootstrap.min.css";
-import "./3p/css/site7.min.css";
-import Confirmation from "../Confirmation";
-import OverlayTrigger from "../OverlayTrigger";
-import Overlay from "../Overlay";
-import MatlabJsd from "../MatlabJsd";
-import LicensingGatherer from "../LicensingGatherer";
-import Controls from "../Controls";
-import Information from "../Information";
-import Help from "../Help";
-import Error from "../Error";
-import ShutdownWarning from "../ShutdownWarning";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { useInterval, useTimeoutFn } from 'react-use';
+import './App.css';
+import './3p/css/bootstrap.min.css';
+import './3p/css/site7.min.css';
+import Confirmation from '../Confirmation';
+import OverlayTrigger from '../OverlayTrigger';
+import Overlay from '../Overlay';
+import MatlabJsd from '../MatlabJsd';
+import LicensingGatherer from '../LicensingGatherer';
+import Controls from '../Controls';
+import Information from '../Information';
+import Help from '../Help';
+import Error from '../Error';
+import ShutdownWarning from '../ShutdownWarning';
 import {
     selectOverlayVisible,
     selectFetchStatusPeriod,
@@ -43,7 +43,7 @@ import {
     selectIsIdleTimeoutEnabled,
     selectMatlabStopping,
     selectIntegrationName
-} from "../../selectors";
+} from '../../selectors';
 
 import {
     setOverlayVisibility,
@@ -51,10 +51,10 @@ import {
     fetchEnvConfig,
     updateAuthStatus,
     fetchShutdownIntegration
-} from "../../actionCreators";
-import blurredBackground from "./MATLAB-env-blur.png";
-import EntitlementSelector from "../EntitlementSelector";
-import { BUFFER_TIMEOUT_DURATION, MWI_AUTH_TOKEN_NAME_FOR_HTTP } from "../../constants";
+} from '../../actionCreators';
+import blurredBackground from './MATLAB-env-blur.png';
+import EntitlementSelector from '../EntitlementSelector';
+import { BUFFER_TIMEOUT_DURATION, MWI_AUTH_TOKEN_NAME_FOR_HTTP } from '../../constants';
 
 function App () {   
     const dispatch = useDispatch();
@@ -101,15 +101,15 @@ function App () {
         // Reset the timer if MATLAB is either starting or stopping or is busy
         if (isMatlabStarting || isMatlabStopping || isMatlabBusy) {
             idleTimerReset();
-            console.log("Resetting IDLE timer as MATLAB is either starting, stopping or busy");
+            console.log('Resetting IDLE timer as MATLAB is either starting, stopping or busy');
         } else if (!shouldListenForEvents) {
             idleTimerCancel();
-            console.log("The IDLE timer has been cancelled.");
+            console.log('The IDLE timer has been cancelled.');
         } else {
             dispatch(setOverlayVisibility(true));
             setIdleTimerHasExpired(true);
-            console.log("The IDLE timer has expired due to inactivity. Will display Shutdown Warning to the user.");
-            console.log("The additional BUFFER timer has started.");
+            console.log('The IDLE timer has expired due to inactivity. Will display Shutdown Warning to the user.');
+            console.log('The additional BUFFER timer has started.');
         }
     }
 
@@ -147,7 +147,7 @@ function App () {
 
     const baseUrl = useMemo(() => {
         const url = document.URL;
-        return url.split(window.location.origin)[1].split("index.html")[0];
+        return url.split(window.location.origin)[1].split('index.html')[0];
     }, []);
 
     const parseQueryParams = (url) => {
@@ -158,14 +158,14 @@ function App () {
     const fullyQualifiedUrl = useMemo(() => {
         // Returns the Fully Qualified URL used to load the page.
         const url = document.URL;
-        const baseUrlStr = url.split("/index.html")[0];
+        const baseUrlStr = url.split('/index.html')[0];
         return baseUrlStr;
     }, []);
 
     const htmlToRenderMATLAB = () => {
         let theHtmlToRenderMATLAB = useMOS
-            ? "index-matlabonlineserver.html"
-            : "index-jsd-cr.html";
+            ? 'index-matlabonlineserver.html'
+            : 'index-jsd-cr.html';
         if (useMRE) {
             theHtmlToRenderMATLAB += `?mre=${encodeURIComponent(fullyQualifiedUrl)}`;
         }
@@ -190,7 +190,7 @@ function App () {
             toggleOverlayVisible(false);
         };
         switch (dialogModel.type) {
-            case "confirmation": {
+            case 'confirmation': {
                 const confirm = () => {
                     dispatch(dialogModel.callback());
                     setDialogModel(null);
@@ -199,12 +199,12 @@ function App () {
                     <Confirmation
                         confirm={confirm}
                         cancel={closeHandler}>
-                        {dialogModel.message || ""}
+                        {dialogModel.message || ''}
                     </Confirmation>
                 );
                 break;
             }
-            case "help":
+            case 'help':
                 dialog = (
                     <Help
                         closeHandler={closeHandler}
@@ -223,7 +223,7 @@ function App () {
                 <p>Attempt to <a href="../">return to a parent app</a></p>
             </Error>
         );
-    } else if (error && error.type === "MatlabInstallError") {
+    } else if (error && error.type === 'MatlabInstallError') {
         dialog = <Error message={error.message} />;
         // check user authentication before giving them the option to transfer the session.
     } else if ((!authEnabled || isAuthenticated) && isSessionConcurrent && isConcurrencyEnabled) {
@@ -245,13 +245,13 @@ function App () {
                     cancel={endSession}
                     title='MATLAB is currently open in another window'
                     cancelButton={wasEverActive
-                        ? ("Cancel")
-                        : ("Continue in existing window")}
+                        ? ('Cancel')
+                        : ('Continue in existing window')}
                     confirmButton={wasEverActive
-                        ? ("Confirm")
-                        : ("Continue in this window")}>
+                        ? ('Confirm')
+                        : ('Continue in this window')}>
                     {wasEverActive
-                        ? "You have been disconnected because MATLAB is open in another window. Click on Confirm to continue using MATLAB here."
+                        ? 'You have been disconnected because MATLAB is open in another window. Click on Confirm to continue using MATLAB here.'
                         : <div>MATLAB is open in another window and cannot be opened in a second window or tab at the same time.<br></br>Would you like to continue in this window?</div>}
                 </Confirmation>
             );
@@ -263,14 +263,14 @@ function App () {
             // Performs actions before the component unloads
             if (isConcurrencyEnabled && !isSessionConcurrent && hasFetchedServerStatus) {
                 // A POST request to clear the active client when the tab/browser is closed
-                navigator.sendBeacon("./clear_client_id");
+                navigator.sendBeacon('./clear_client_id');
             }
             event.preventDefault();
-            event.returnValue = "";
+            event.returnValue = '';
         };
-        window.addEventListener("pagehide", handlePageHide);
+        window.addEventListener('pagehide', handlePageHide);
         return () => {
-            window.removeEventListener("pagehide", handlePageHide);
+            window.removeEventListener('pagehide', handlePageHide);
         };
     }, [isConcurrencyEnabled, isSessionConcurrent, hasFetchedServerStatus]);
 
@@ -312,7 +312,7 @@ function App () {
             if (token) {
                 dispatch(updateAuthStatus(token));
             }
-            window.history.replaceState(null, "", `${baseUrl}index.html`);
+            window.history.replaceState(null, '', `${baseUrl}index.html`);
         }
     }, [dispatch, baseUrl, hasFetchedEnvConfig]);
 
@@ -343,7 +343,7 @@ function App () {
                     // Cancel BUFFER timer
                     bufferTimerCancel();
                     setBufferTimerHasExpired(false);
-                    console.log("Reset IDLE timer and cancelled BUFFER timer after user resumed activity.");
+                    console.log('Reset IDLE timer and cancelled BUFFER timer after user resumed activity.');
                 }} />;
         }
     } else if (dialog) {
@@ -378,8 +378,8 @@ function App () {
 
     // MW Internal Comment: See g2992889 for a discussion on why a FQDN is required in the MRE parameter.
     // MW Internal Comment: Using websocket on breaks some UI components : `./index-matlabonlineserver.html?websocket=on&mre=${fullyQualifiedUrl}`;
-    const matlabUrl = process.env.NODE_ENV === "development"
-        ? "http://localhost:31515/index-jsd-cr.html"
+    const matlabUrl = process.env.NODE_ENV === 'development'
+        ? 'http://localhost:31515/index-jsd-cr.html'
         : `./${htmlToRenderMATLAB()}`;
 
     // handler for user events (mouse clicks, key presses etc.)
@@ -392,7 +392,7 @@ function App () {
     if (matlabUp) {
         matlabJsd = (!authEnabled || isAuthenticated)
             ? (<MatlabJsd handleUserInteraction={handleUserInteraction} url={matlabUrl} iFrameRef={MatlabJsdIframeRef} shouldListenForEvents={shouldListenForEvents} />)
-            : <img style={{ "objectFit": "fill" }}src={blurredBackground} alt='Blurred MATLAB environment'/>;
+            : <img style={{ objectFit: 'fill' }}src={blurredBackground} alt='Blurred MATLAB environment'/>;
     }
 
     const overlayTrigger = overlayVisible

@@ -1,24 +1,24 @@
 // Copyright 2020-2025 The MathWorks, Inc.
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
-import Draggable from "react-draggable";
-import  {Tooltip as ReactTooltip} from "react-tooltip";
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import Draggable from 'react-draggable';
+import  {Tooltip as ReactTooltip} from 'react-tooltip';
 
-import Overlay from "../Overlay";
+import Overlay from '../Overlay';
 import {
     selectInformationDetails,
     selectTriggerPosition,
     selectTutorialHidden,
     selectOverlayVisible,
     selectIntegrationName
-} from "../../selectors";
+} from '../../selectors';
 import {
     setTriggerPosition,
     setTutorialHidden,
     setOverlayVisibility
-} from "../../actionCreators";
-import "./OverlayTrigger.css";
+} from '../../actionCreators';
+import './OverlayTrigger.css';
 
 function OverlayTrigger () {
     const dispatch = useDispatch();

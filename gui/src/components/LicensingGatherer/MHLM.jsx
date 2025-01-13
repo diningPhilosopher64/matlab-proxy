@@ -1,69 +1,69 @@
 // Copyright 2020-2025 The MathWorks, Inc.
 
-import React, { useState, useEffect, useMemo } from "react";
-import { useSelector, useDispatch } from "react-redux";
-import PropTypes from "prop-types";
+import React, { useState, useEffect, useMemo } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import PropTypes from 'prop-types';
 import {
     selectLicensingMhlmUsername,
     selectWsEnv,
     selectMatlabVersionOnPath,
     selectSupportedMatlabVersions
-} from "../../selectors";
+} from '../../selectors';
 import {
     fetchSetLicensing
-} from "../../actionCreators";
+} from '../../actionCreators';
 
 // Send a generated nonce to the login iframe
 function setLoginNonce (username) {
-    const clientNonce = (Math.random() + "").substr(2);
+    const clientNonce = (Math.random() + '').substr(2);
     const noncePayload = {
-        "event": "init",
-        "clientTransactionId": clientNonce,
-        "transactionId": "",
-        "release": "",
-        "platform": "",
-        "clientString": "desktop-jupyter",
-        "clientID": "",
-        "locale": "",
-        "profileTier": "",
-        "showCreateAccount": false,
-        "showRememberMe": false,
-        "showLicenseField": false,
-        "licenseNo": "",
-        "cachedUsername": username,
-        "cachedRememberMe": false
+        event: 'init',
+        clientTransactionId: clientNonce,
+        transactionId: '',
+        release: '',
+        platform: '',
+        clientString: 'desktop-jupyter',
+        clientID: '',
+        locale: '',
+        profileTier: '',
+        showCreateAccount: false,
+        showRememberMe: false,
+        showLicenseField: false,
+        licenseNo: '',
+        cachedUsername: username,
+        cachedRememberMe: false
     };
 
-    const loginFrame = document.getElementById("loginframe").contentWindow;
-    loginFrame.postMessage(JSON.stringify(noncePayload), "*");
+    const loginFrame = document.getElementById('loginframe').contentWindow;
+    loginFrame.postMessage(JSON.stringify(noncePayload), '*');
 }
 
 function initLogin (clientNonce, serverNonce, sourceId) {
     const initPayload = {
-        "event": "load",
-        "clientTransactionId": clientNonce,
-        "transactionId": serverNonce,
-        "release": "",
-        "platform": "web",
-        "clientString": "desktop-jupyter",
-        "clientId": "",
+        event: 'load',
+        clientTransactionId: clientNonce,
+        transactionId: serverNonce,
+        release: '',
+        platform: 'web',
+        clientString: 'desktop-jupyter',
+        clientId: '',
         sourceId,
-        "profileTier": "MINIMUM",
-        "showCreateAccount": false,
-        "showRememberMe": false,
-        "showLicenseField": false,
-        "entitlementId": "",
-        "showPrivacyPolicy": true,
-        "contextualText": "",
-        "legalText": "",
-        "cachedIdentifier": "",
-        "cachedRememberMe": "",
-        "token": "",
-        "unauthorized": false
+        profileTier: 'MINIMUM',
+        showCreateAccount: false,
+        showRememberMe: false,
+        showLicenseField: false,
+        entitlementId: '',
+        showPrivacyPolicy: true,
+        contextualText: '',
+        legalText: '',
+        cachedIdentifier: '',
+        cachedRememberMe: '',
+        token: '',
+        unauthorized: false
     };
 
-    const loginFrame = document.getElementById("loginframe").contentWindow;
-    loginFrame.postMessage(JSON.stringify(initPayload), "*");
+    const loginFrame = document.getElementById('loginframe').contentWindow;
+    loginFrame.postMessage(JSON.stringify(initPayload), '*');
 }
 
 // Adding a child prop with null as default for improved testability.
@@ -81,8 +81,8 @@ function MHLM ({ mhlmLicensingInfo = null }) {
 
     const mhlmLoginHostname = useMemo(
         () => {
-            let subdomain = "login";
-            if (wsEnv.includes("integ")) {
+            let subdomain = 'login';
+            if (wsEnv.includes('integ')) {
                 subdomain = `${subdomain}-${wsEnv}`;
             }
             return `https://${subdomain}.mathworks.com`;
@@ -101,25 +101,25 @@ function MHLM ({ mhlmLicensingInfo = null }) {
             // Only process events that are related to the iframe setup
             if (event.origin === mhlmLoginHostname) {
                 const data = JSON.parse(event.data);
-                if (data.event === "nonce") {
+                if (data.event === 'nonce') {
                     initLogin(
                         data.clientTransactionId,
                         data.transactionId,
                         sourceId
                     );
-                } else if (data.event === "login") {
+                } else if (data.event === 'login') {
                     const mhlmLicensingInfo = {
-                        "type": "mhlm",
-                        "token": data.token,
-                        "profileId": data.profileId,
-                        "emailAddress": data.emailAddress,
+                        type: 'mhlm',
+                        token: data.token,
+                        profileId: data.profileId,
+                        emailAddress: data.emailAddress,
                         sourceId
                     };
                     // matlab version is required in subsequent steps on the server side.
                     // If matlab version is available, persist licensing on the server side.
                     // Else, store response from mhlm and render drop down to choose matlab version.
                     if (matlabVersionOnPath) {
-                        dispatch(fetchSetLicensing({ ...mhlmLicensingInfo, "matlabVersion": matlabVersionOnPath }));
+                        dispatch(fetchSetLicensing({ ...mhlmLicensingInfo, matlabVersion: matlabVersionOnPath }));
                     } else {
                         setFetchedMhlmLicensingInfo(mhlmLicensingInfo);
                     }
@@ -127,11 +127,11 @@ function MHLM ({ mhlmLicensingInfo = null }) {
             }
         };
 
-        window.addEventListener("message", handler);
+        window.addEventListener('message', handler);
 
         // Clean up
         return () => {
-            window.removeEventListener("message", handler);
+            window.removeEventListener('message', handler);
         };
     }, [dispatch, sourceId, mhlmLoginHostname, fetchedMhlmLicensingInfo, matlabVersionOnPath]);
 
@@ -163,7 +163,7 @@ function MHLM ({ mhlmLicensingInfo = null }) {
 
     const submitForm = (event) => {
         event.preventDefault();
-        dispatch(fetchSetLicensing({ ...fetchedMhlmLicensingInfo, "matlabVersion": selectedMatlabVersion }));
+        dispatch(fetchSetLicensing({ ...fetchedMhlmLicensingInfo, matlabVersion: selectedMatlabVersion }));
     };
 
     const chooseMatlabVersionDropDown = (
@@ -198,6 +198,6 @@ function MHLM ({ mhlmLicensingInfo = null }) {
     }
 }
 MHLM.propTypes = {
-    "mhlmLicensingInfo": PropTypes.object
+    mhlmLicensingInfo: PropTypes.object
 };
 export default MHLM;

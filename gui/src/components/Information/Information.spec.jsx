@@ -1,16 +1,16 @@
 // Copyright 2020-2025 The MathWorks, Inc.
 
-import React from "react";
-import Information from "./index";
-import App from "../App";
-import { render } from "../../test/utils/react-test";
-import { fireEvent } from "@testing-library/react";
-import state from "../../test/utils/state";
-import * as actionCreators from "../../actionCreators";
+import React from 'react';
+import Information from './index';
+import App from '../App';
+import { render } from '../../test/utils/react-test';
+import { fireEvent } from '@testing-library/react';
+import state from '../../test/utils/state';
+import * as actionCreators from '../../actionCreators';
 
-const _ = require("lodash");
+const _ = require('lodash');
 
-describe("Information Component", () => {
+describe('Information Component', () => {
     let closeHandler, children, initialState;
     beforeEach(() => {
         children = (
@@ -26,8 +26,8 @@ describe("Information Component", () => {
 
         const mockIntersectionObserver = vi.fn();
         mockIntersectionObserver.mockReturnValue({
-            "observe": () => null,
-            "disconnect": () => null
+            observe: () => null,
+            disconnect: () => null
         });
 
         window.IntersectionObserver = mockIntersectionObserver;
@@ -36,75 +36,75 @@ describe("Information Component", () => {
         vi.clearAllMocks();
     });
 
-    it("should throw console.error when rendered without closeHandler prop", () => {
-        const errorMock = vi.spyOn(console, "error").mockImplementation(() => { });
+    it('should throw console.error when rendered without closeHandler prop', () => {
+        const errorMock = vi.spyOn(console, 'error').mockImplementation(() => { });
 
         render(<Information />);
 
         expect(errorMock).toHaveBeenCalledTimes(1);
     });
 
-    it("should render without crashing", () => {
+    it('should render without crashing', () => {
         render(<Information closeHandler={closeHandler} />);
     });
 
-    it("should render child nodes passed to it without crashing", () => {
+    it('should render child nodes passed to it without crashing', () => {
         const { getByTestId } = render(
             <Information closeHandler={closeHandler}>{children}</Information>
         );
 
-        expect(getByTestId("child")).toBeInTheDocument();
+        expect(getByTestId('child')).toBeInTheDocument();
     });
 
-    it("should render Online Licensing info with licensing type MHLM", () => {
+    it('should render Online Licensing info with licensing type MHLM', () => {
         const { getByText } = render(
             <Information closeHandler={closeHandler}>{children}</Information>,
             { initialState }
         );
 
-        const licensingInfo = getByText("Licensing:");
+        const licensingInfo = getByText('Licensing:');
 
         expect(licensingInfo.nextSibling.textContent).toContain(
             initialState.serverStatus.licensingInfo.emailAddress
         );
     });
 
-    it("should render Online Licensing info with licensing type NLM", () => {
+    it('should render Online Licensing info with licensing type NLM', () => {
         initialState.serverStatus.licensingInfo = {
-            "type": "nlm",
-            "connectionString": "abc@nlm"
+            type: 'nlm',
+            connectionString: 'abc@nlm'
         };
         const { getByText } = render(
             <Information closeHandler={closeHandler} >{children}</Information>,
             { initialState }
         );
 
-        const licensingInfo = getByText("Licensing:");
+        const licensingInfo = getByText('Licensing:');
 
         expect(licensingInfo.nextSibling.textContent).toContain(
             initialState.serverStatus.licensingInfo.connectionString
         );
     });
 
-    it("should render Existing License with licensing type existing_license", () => {
+    it('should render Existing License with licensing type existing_license', () => {
         initialState.serverStatus.licensingInfo = {
-            "type": "existing_license"
+            type: 'existing_license'
         };
         const { getByText } = render(
             <Information closeHandler={closeHandler}>{children}</Information>,
             { initialState }
         );
 
-        const licensingInfo = getByText("Licensing:");
-        expect(licensingInfo.nextSibling.textContent).toEqual("Existing License");
+        const licensingInfo = getByText('Licensing:');
+        expect(licensingInfo.nextSibling.textContent).toEqual('Existing License');
     });
 
-    it("should display errors", () => {
+    it('should display errors', () => {
         initialState.error = {
-            "message": "Exited with exit code -9",
-            "logs": [
-                "Matlab exited with exit code -9",
-                "Check matlab logs for more details"
+            message: 'Exited with exit code -9',
+            logs: [
+                'Matlab exited with exit code -9',
+                'Check matlab logs for more details'
             ]
         };
 
@@ -113,25 +113,25 @@ describe("Information Component", () => {
             { initialState }
         );
 
-        const errorContent = container.getElementsByClassName("error-msg").item(0)
+        const errorContent = container.getElementsByClassName('error-msg').item(0)
             .textContent;
 
-        expect(errorContent).toEqual(initialState.error.logs.join("\n").trim());
+        expect(errorContent).toEqual(initialState.error.logs.join('\n').trim());
     });
 
-    it("should close overlay on button click", () => {
+    it('should close overlay on button click', () => {
         const { container } = render(
             <Information closeHandler={closeHandler}>{children}</Information>,
             { initialState }
         );
 
-        const closeBtn = container.getElementsByClassName("close").item(0);
+        const closeBtn = container.getElementsByClassName('close').item(0);
 
         fireEvent.click(closeBtn);
     });
 
-    it("should close the Information Component and display the overlayTrigger when close button is clicked", () => {
-        const mockFetchServerStatus = vi.spyOn(actionCreators, "fetchServerStatus").mockImplementation(() => {
+    it('should close the Information Component and display the overlayTrigger when close button is clicked', () => {
+        const mockFetchServerStatus = vi.spyOn(actionCreators, 'fetchServerStatus').mockImplementation(() => {
             return () => Promise.resolve();
         });
         // Hide the tutorial and make the overlay visible.
@@ -146,23 +146,24 @@ describe("Information Component", () => {
             initialState
         });
 
-        const informationComponent = container.querySelector("#information");
+        const informationComponent = container.querySelector('#information');
 
         // Check if information dialog is displayed
         expect(informationComponent).toBeInTheDocument();
 
         // grab and click on the close button of information dialog
-        const closeBtn = container.getElementsByClassName("close").item(0);
+        const closeBtn = container.getElementsByClassName('close').item(0);
         fireEvent.click(closeBtn);
 
-        const overlayTriggerComponent = getByTestId("overlayTrigger");
+        const overlayTriggerComponent = getByTestId('overlayTrigger');
 
         // Check if information dialog is not displayed and overlay trigger is displayed.
         expect(informationComponent).not.toBeInTheDocument();
         expect(overlayTriggerComponent).toBeInTheDocument();
+        expect(mockFetchServerStatus).toHaveBeenCalled();
     });
 
-    it("should call the closeHandler callback when the modal is clicked", () => {
+    it('should call the closeHandler callback when the modal is clicked', () => {
         initialState.authentication.enabled = true;
         initialState.authentication.status = true;
         const { getByRole } = render(
@@ -170,7 +171,7 @@ describe("Information Component", () => {
             { initialState }
         );
 
-        const modal = getByRole("dialog");
+        const modal = getByRole('dialog');
         fireEvent.click(modal);
 
         expect(closeHandler).toHaveBeenCalledTimes(1);

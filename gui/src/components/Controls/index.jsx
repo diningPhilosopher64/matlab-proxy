@@ -1,9 +1,9 @@
 // Copyright 2020-2025 The MathWorks, Inc.
 
-import React, { useRef } from "react";
-import PropTypes from "prop-types";
-import { useSelector } from "react-redux";
-import  {Tooltip as ReactTooltip} from "react-tooltip";
+import React, { useRef } from 'react';
+import PropTypes from 'prop-types';
+import { useSelector } from 'react-redux';
+import  {Tooltip as ReactTooltip} from 'react-tooltip';
 import {
     selectSubmittingServerStatus,
     selectLicensingInfo,
@@ -18,19 +18,19 @@ import {
     selectLicensingIsMhlm,
     selectIsEntitled,
     selectShouldShowShutdownButton
-} from "../../selectors";
+} from '../../selectors';
 import {
     fetchStartMatlab,
     fetchStopMatlab,
     fetchShutdownIntegration,
     fetchUnsetLicensing
-} from "../../actionCreators";
-import "./Controls.css";
+} from '../../actionCreators';
+import './Controls.css';
 
 // Suggested actions for certain errors
 const ERROR_TYPE_MAP = {
-    "sign-out": ["NetworkLicensingError", "EntitlementError", "UIVisibleFatalError"],
-    "restart": ["OnlineLicensingError"]
+    'sign-out': ['NetworkLicensingError', 'EntitlementError', 'UIVisibleFatalError'],
+    restart: ['OnlineLicensingError']
 };
 
 function Controls ({
@@ -59,76 +59,76 @@ function Controls ({
 
     let licensingData, licensingConfirmationMessage;
     switch (licensingInfo?.type) {
-        case "mhlm":
+        case 'mhlm':
             licensingData = {
-                "label": "Sign Out",
-                "dataTip": "Sign out of MATLAB"
+                label: 'Sign Out',
+                dataTip: 'Sign out of MATLAB'
             };
-            licensingConfirmationMessage = "Are you sure you want to sign out of MATLAB?";
+            licensingConfirmationMessage = 'Are you sure you want to sign out of MATLAB?';
             break;
-        case "nlm":
+        case 'nlm':
             licensingData = {
-                "label": "Remove License Server Address",
-                "dataTip": "Remove the network license manager server address"
+                label: 'Remove License Server Address',
+                dataTip: 'Remove the network license manager server address'
             };
-            licensingConfirmationMessage = "Are you sure you want to remove the network license manager server address?";
+            licensingConfirmationMessage = 'Are you sure you want to remove the network license manager server address?';
             break;
 
-        case "existing_license":
+        case 'existing_license':
             licensingData = {
-                "label": "Stop using Existing License",
-                "dataTip": "Stop using existing license"
+                label: 'Stop using Existing License',
+                dataTip: 'Stop using existing license'
             };
-            licensingConfirmationMessage = "Are you sure you want to stop using an Existing License?";
+            licensingConfirmationMessage = 'Are you sure you want to stop using an Existing License?';
             break;
 
         default:
             licensingData = {
-                "label": "None",
-                "dataTip": "None"
+                label: 'None',
+                dataTip: 'None'
             };
             licensingConfirmationMessage = null;
     }
 
     const Confirmations = {
-        "START": {
-            "type": "confirmation",
-            "message": `Are you sure you want to ${matlabUp
-                ? "re"
-                : ""}start MATLAB?`,
-            "callback": fetchStartMatlab
+        START: {
+            type: 'confirmation',
+            message: `Are you sure you want to ${matlabUp
+                ? 're'
+                : ''}start MATLAB?`,
+            callback: fetchStartMatlab
         },
-        "STOP": {
-            "type": "confirmation",
-            "message": "Are you sure you want to stop MATLAB?",
-            "callback": fetchStopMatlab
+        STOP: {
+            type: 'confirmation',
+            message: 'Are you sure you want to stop MATLAB?',
+            callback: fetchStopMatlab
         },
-        "SHUTDOWN": {
-            "type": "confirmation",
-            "message": "Are you sure you want to shut down MATLAB and MATLAB Proxy?",
-            "callback": fetchShutdownIntegration
+        SHUTDOWN: {
+            type: 'confirmation',
+            message: 'Are you sure you want to shut down MATLAB and MATLAB Proxy?',
+            callback: fetchShutdownIntegration
         },
-        "SIGN_OUT": {
-            "type": "confirmation",
-            "message": licensingConfirmationMessage,
-            "callback": fetchUnsetLicensing
+        SIGN_OUT: {
+            type: 'confirmation',
+            message: licensingConfirmationMessage,
+            callback: fetchUnsetLicensing
         },
-        "HELP": {
-            "type": "help"
+        HELP: {
+            type: 'help'
         }
     };
 
     function getBtnClass (btn) {
-        const cls = "btn companion_btn ";
+        const cls = 'btn companion_btn ';
         if (error) {
             if ((ERROR_TYPE_MAP[btn] || []).includes(error.type)) {
-                return cls + "btn_color_blue";
+                return cls + 'btn_color_blue';
             }
-        } else if (btn === "start" && (authEnabled && !isAuthenticated)) {
+        } else if (btn === 'start' && (authEnabled && !isAuthenticated)) {
             // if there's no error, then highlight the "Start" button (if visible)
-            return cls + "btn_color_blue";
+            return cls + 'btn_color_blue';
         }
-        return cls + "btn_color_mediumgray";
+        return cls + 'btn_color_mediumgray';
     }
 
     return (
@@ -137,27 +137,27 @@ function Controls ({
                 id="startMatlab"
                 data-testid='startMatlabBtn'
                 className={getBtnClass(matlabUp
-                    ? "restart"
-                    : "start")}
+                    ? 'restart'
+                    : 'start')}
                 onClick={() => callback(Confirmations.START)}
                 disabled={!licensed || matlabStarting || matlabStopping || (authEnabled && !isAuthenticated) || (licensingIsMhlm && !isEntitled)}
                 data-tooltip-id="control-button-tooltip"
                 data-tooltip-content={`${matlabUp
-                    ? "Restart"
-                    : "Start"}  MATLAB`}
+                    ? 'Restart'
+                    : 'Start'}  MATLAB`}
                 data-tooltip-variant="info"
             >
                 <span className={`icon-custom-${matlabUp
-                    ? "re"
-                    : ""}start`}></span>
+                    ? 're'
+                    : ''}start`}></span>
                 <span className='btn-label'>{`${matlabUp
-                    ? "Restart"
-                    : "Start"} MATLAB`}</span>
+                    ? 'Restart'
+                    : 'Start'} MATLAB`}</span>
             </button>
             <button
                 id="stopMatlab"
                 data-testid='stopMatlabBtn'
-                className={getBtnClass("stop")}
+                className={getBtnClass('stop')}
                 onClick={() => callback(Confirmations.STOP)}
                 disabled={ matlabStopping || matlabDown || (authEnabled && !isAuthenticated)}
                 data-tooltip-id="control-button-tooltip"
@@ -170,7 +170,7 @@ function Controls ({
             <button
                 id="unsetLicensing"
                 data-testid='unsetLicensingBtn'
-                className={getBtnClass("sign-out")}
+                className={getBtnClass('sign-out')}
                 onClick={() => callback(Confirmations.SIGN_OUT)}
                 disabled={!canResetLicensing || (authEnabled && !isAuthenticated)}
                 data-tooltip-id="control-button-tooltip"
@@ -183,7 +183,7 @@ function Controls ({
             {shouldShowShutdownButton && <button
                 id="shutdownMatlabandMatlabProxy"
                 data-testid='shutdownBtn'
-                className={getBtnClass("shutdown")}
+                className={getBtnClass('shutdown')}
                 onClick={() => callback(Confirmations.SHUTDOWN)}
                 disabled={!canResetLicensing || (authEnabled && !isAuthenticated)}
                 data-tooltip-id="control-button-tooltip"
@@ -232,8 +232,8 @@ function Controls ({
 
 // TODO: Should these be required ?
 Controls.propTypes = {
-    "confirmHandler": PropTypes.func,
-    "callback": PropTypes.func.isRequired
+    confirmHandler: PropTypes.func,
+    callback: PropTypes.func.isRequired
 };
 
 export default Controls;

@@ -1,10 +1,10 @@
 // Copyright 2020-2025 The MathWorks, Inc.
 
-import React, { useState } from "react";
-import { useDispatch } from "react-redux";
+import React, { useState } from 'react';
+import { useDispatch } from 'react-redux';
 import {
     fetchSetLicensing
-} from "../../actionCreators";
+} from '../../actionCreators';
 
 // Regular expression to match port@hostname,
 // where port is any number and hostname is alphanumeric
@@ -41,7 +41,7 @@ function validateInput (nlmConnectionsStr) {
 
 function NLM () {
     const dispatch = useDispatch();
-    const [connStr, setConnStr] = useState("");
+    const [connStr, setConnStr] = useState('');
     const [changed, setChanged] = useState(false);
 
     const valid = validateInput(connStr);
@@ -49,8 +49,8 @@ function NLM () {
     function submitForm (event) {
         event.preventDefault();
         dispatch(fetchSetLicensing({
-            "type": "nlm",
-            "connectionString": connStr
+            type: 'nlm',
+            connectionString: connStr
         }));
     }
 
@@ -59,14 +59,14 @@ function NLM () {
             <form onSubmit={submitForm}>
                 <div className={`form-group has-feedback ${changed
                     ? (valid
-                        ? "has-success"
-                        : "has-error")
-                    : ""}`}>
+                        ? 'has-success'
+                        : 'has-error')
+                    : ''}`}>
                     <label htmlFor="nlm-connection-string">License Server Address</label>
                     <input id="nlm-connection-string"
                         type="text"
                         required={true}
-                        placeholder={"port@hostname"}
+                        placeholder={'port@hostname'}
                         className="form-control"
                         aria-invalid={!valid}
                         value={connStr}

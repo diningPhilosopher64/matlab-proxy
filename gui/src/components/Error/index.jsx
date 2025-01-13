@@ -1,9 +1,9 @@
 // Copyright 2020-2025 The MathWorks, Inc.
 
-import React from "react";
-import PropTypes from "prop-types";
-import Linkify from "react-linkify";
-import "./Error.css";
+import React from 'react';
+import PropTypes from 'prop-types';
+import Linkify from 'react-linkify';
+import './Error.css';
 
 function Error ({ message, logs, children }) {
     const logReport = logs
@@ -23,7 +23,7 @@ function Error ({ message, logs, children }) {
             <div className="modal-dialog modal-dialog-centered" role="document">
                 <div className="modal-content alert alert-danger">
                     <div className="modal-header">
-                        <span className={"alert_icon icon-alert-error"}></span>
+                        <span className={'alert_icon icon-alert-error'}></span>
                         <h4 className="modal-title alert_heading">Error</h4>
                     </div>
                     <div className="modal-body">
@@ -38,9 +38,9 @@ function Error ({ message, logs, children }) {
 }
 
 Error.propTypes = {
-    "message": PropTypes.string.isRequired,
-    "logs": PropTypes.arrayOf(PropTypes.string),
-    "children": PropTypes.node
+    message: PropTypes.string.isRequired,
+    logs: PropTypes.arrayOf(PropTypes.string),
+    children: PropTypes.node
 };
 
 export default Error;

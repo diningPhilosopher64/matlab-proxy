@@ -1,12 +1,12 @@
 // Copyright 2020-2025 The MathWorks, Inc.
 
-import React, { useEffect } from "react";
-import PropTypes from "prop-types";
-import "./MatlabJsd.css";
+import React, { useEffect } from 'react';
+import PropTypes from 'prop-types';
+import './MatlabJsd.css';
 import {
     selectMatlabUp
-} from "../../selectors";
-import { useSelector } from "react-redux";
+} from '../../selectors';
+import { useSelector } from 'react-redux';
 
 function MatlabJsd ({ url, iFrameRef, shouldListenForEvents, handleUserInteraction }) {
     const matlabUp = useSelector(selectMatlabUp);
@@ -14,10 +14,10 @@ function MatlabJsd ({ url, iFrameRef, shouldListenForEvents, handleUserInteracti
     useEffect(() => {
         // access the DOM node corresponding to the MatlabJSD Iframe
         const MatlabJsdIframeDom = iFrameRef.current;
-        const userEvents = ["click", "mousemove", "keydown"];
+        const userEvents = ['click', 'mousemove', 'keydown'];
 
         if (MatlabJsdIframeDom && shouldListenForEvents) {
-            console.log("Adding event handlers to IFrame");
+            console.log('Adding event handlers to IFrame');
             userEvents.forEach((eventName) => {
                 MatlabJsdIframeDom.contentWindow.addEventListener(eventName, handleUserInteraction, false);
             });
@@ -25,7 +25,7 @@ function MatlabJsd ({ url, iFrameRef, shouldListenForEvents, handleUserInteracti
 
         return () => {
             if (MatlabJsdIframeDom && shouldListenForEvents) {
-                console.log("Removing event handlers from IFrame");
+                console.log('Removing event handlers from IFrame');
                 userEvents.forEach((eventName) => {
                     MatlabJsdIframeDom.contentWindow.removeEventListener(eventName, handleUserInteraction, false);
                 });
@@ -46,10 +46,10 @@ function MatlabJsd ({ url, iFrameRef, shouldListenForEvents, handleUserInteracti
 }
 
 MatlabJsd.propTypes = {
-    "url": PropTypes.string.isRequired,
-    "iFrameRef": PropTypes.object.isRequired,
-    "shouldListenForEvents": PropTypes.bool.isRequired,
-    "handleUserInteraction": PropTypes.func.isRequired
+    url: PropTypes.string.isRequired,
+    iFrameRef: PropTypes.object.isRequired,
+    shouldListenForEvents: PropTypes.bool.isRequired,
+    handleUserInteraction: PropTypes.func.isRequired
 };
 
 export default MatlabJsd;

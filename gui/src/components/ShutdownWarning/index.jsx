@@ -5,14 +5,14 @@
 // In case of no interaction, the application will automatically shutdown after
 // 'bufferTimeout' seconds (which is given as a prop to the component)
 
-import React, { useState, useEffect } from "react";
-import PropTypes from "prop-types";
-import { useDispatch, useSelector } from "react-redux";
+import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
+import { useDispatch, useSelector } from 'react-redux';
 import {
     selectIntegrationName
-} from "../../selectors";
-import { setOverlayVisibility } from "../../actionCreators";
-import "./ShutdownWarning.css";
+} from '../../selectors';
+import { setOverlayVisibility } from '../../actionCreators';
+import './ShutdownWarning.css';
 
 function ShutdownWarning ({ bufferTimeout, resumeCallback }) {
     const dispatch = useDispatch();
@@ -65,8 +65,8 @@ function ShutdownWarning ({ bufferTimeout, resumeCallback }) {
 }
 
 ShutdownWarning.propTypes = {
-    "bufferTimeout": PropTypes.number.isRequired,
-    "resumeCallback": PropTypes.func.isRequired
+    bufferTimeout: PropTypes.number.isRequired,
+    resumeCallback: PropTypes.func.isRequired
 };
 
 export default ShutdownWarning;

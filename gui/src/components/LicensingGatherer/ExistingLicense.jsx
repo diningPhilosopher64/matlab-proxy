@@ -1,11 +1,11 @@
 // Copyright 2023-2025 The MathWorks, Inc
 
-import React from "react";
-import { useDispatch } from "react-redux";
+import React from 'react';
+import { useDispatch } from 'react-redux';
 import {
     fetchSetLicensing
-} from "../../actionCreators";
-import "./ExistingLicense.css";
+} from '../../actionCreators';
+import './ExistingLicense.css';
 
 function ExistingLicense () {
     const dispatch = useDispatch();
@@ -13,7 +13,7 @@ function ExistingLicense () {
     function submitForm (event) {
         event.preventDefault();
         dispatch(fetchSetLicensing({
-            "type": "existing_license"
+            type: 'existing_license'
         }));
     }
 

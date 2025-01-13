@@ -1,15 +1,15 @@
 // Copyright 2020-2025 The MathWorks, Inc.
 
-import { render } from "../../test/utils/react-test";
-import { fireEvent, waitFor } from "@testing-library/react";
-import { renderHook, act } from "@testing-library/react-hooks";
-import React from "react";
-import OverlayTrigger from "./index";
-import state from "../../test/utils/state";
+import { render } from '../../test/utils/react-test';
+import { fireEvent, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react-hooks';
+import React from 'react';
+import OverlayTrigger from './index';
+import state from '../../test/utils/state';
 
-const _ = require("lodash");
+const _ = require('lodash');
 
-describe("OverlayTrigger Component", () => {
+describe('OverlayTrigger Component', () => {
     let mockIntersectionObserver, observe, unobserve, disconnect, initialState;
 
     beforeEach(() => {
@@ -37,7 +37,7 @@ describe("OverlayTrigger Component", () => {
 
     // returns the width and height of the current window
     function getWindowDimensions () {
-        const { "innerWidth": width, "innerHeight": height } = window;
+        const { innerWidth: width, innerHeight: height } = window;
         return { width, height };
     }
 
@@ -52,13 +52,13 @@ describe("OverlayTrigger Component", () => {
             function handleResize () {
                 setWindowDimensions(getWindowDimensions());
             }
-            window.addEventListener("resize", handleResize);
-            return () => window.removeEventListener("resize", handleResize);
+            window.addEventListener('resize', handleResize);
+            return () => window.removeEventListener('resize', handleResize);
         }, []);
         return windowDimensions;
     }
 
-    it("should resize the viewport and call observe function", async () => {
+    it('should resize the viewport and call observe function', async () => {
         render(<OverlayTrigger />, {
             initialState
         });
@@ -68,7 +68,7 @@ describe("OverlayTrigger Component", () => {
         act(() => {
             window.innerWidth = 200;
             window.innerHeight = 200;
-            fireEvent(window, new Event("resize"));
+            fireEvent(window, new Event('resize'));
         });
 
         await waitFor(() => {

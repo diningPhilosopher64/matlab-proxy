@@ -1,9 +1,9 @@
 // Copyright 2020-2025 The MathWorks, Inc.
 
-import React, { useRef, useState } from "react";
-import PropTypes from "prop-types";
-import { useSelector, useDispatch } from "react-redux";
-import Linkify from "react-linkify";
+import React, { useRef, useState } from 'react';
+import PropTypes from 'prop-types';
+import { useSelector, useDispatch } from 'react-redux';
+import Linkify from 'react-linkify';
 import {
     selectLicensingInfo,
     selectError,
@@ -13,9 +13,9 @@ import {
     selectAuthEnabled,
     selectIsAuthenticated,
     selectAuthToken
-} from "../../selectors";
-import { updateAuthStatus, getAuthToken } from "../../actionCreators";
-import "./Information.css";
+} from '../../selectors';
+import { updateAuthStatus, getAuthToken } from '../../actionCreators';
+import './Information.css';
 
 function Information ({
     closeHandler,
@@ -26,7 +26,7 @@ function Information ({
     const warnings = useSelector(selectWarnings);
     const overlayHidable = useSelector(selectOverlayHidable);
 
-    const [token, setToken] = useState("");
+    const [token, setToken] = useState('');
     const [showToken, setShowToken] = useState(false);
     const authEnabled = useSelector(selectAuthEnabled);
     const isAuthenticated = useSelector(selectIsAuthenticated);
@@ -39,24 +39,24 @@ function Information ({
 
     let info;
     switch (licensingInfo?.type) {
-        case "mhlm":
+        case 'mhlm':
             info = {
-                "label": `Online License Manager (${licensingInfo.emailAddress})`
+                label: `Online License Manager (${licensingInfo.emailAddress})`
             };
             break;
-        case "nlm":
+        case 'nlm':
             info = {
-                "label": `Network License Manager (${licensingInfo.connectionString})`
+                label: `Network License Manager (${licensingInfo.connectionString})`
             };
             break;
-        case "existing_license":
+        case 'existing_license':
             info = {
-                "label": "Existing License"
+                label: 'Existing License'
             };
             break;
         default:
             info = {
-                "label": "None"
+                label: 'None'
             };
     }
 
@@ -67,7 +67,7 @@ function Information ({
             <div className="error-container alert alert-danger">
                 <p><strong>Error</strong></p>
                 <Linkify>
-                    <div className="error-text"><pre style={{ "backgroundColor": "hsla(0,0%,100%,0)", "border": "none", "fontFamily": "inherit", "fontSize": "15px" }}>{error.message}</pre></div>
+                    <div className="error-text"><pre style={{ backgroundColor: 'hsla(0,0%,100%,0)', border: 'none', fontFamily: 'inherit', fontSize: '15px' }}>{error.message}</pre></div>
                 </Linkify>
             </div>
         )
@@ -77,8 +77,8 @@ function Information ({
         ? (
             <div className="expand_collapse error-logs-container">
                 <h4 className={`expand_trigger ${errorLogsExpanded
-                    ? "expanded"
-                    : "collapsed"}`}
+                    ? 'expanded'
+                    : 'collapsed'}`}
                 onClick={() => setErrorLogsExpanded(!errorLogsExpanded)}>
                     <span className="icon-arrow-open-down"></span>
                     <span className="icon-arrow-open-right"></span>
@@ -86,11 +86,11 @@ function Information ({
                 </h4>
                 <div id="error-logs"
                     className={`expand_target error-container alert alert-danger ${errorLogsExpanded
-                        ? "expanded"
-                        : "collapsed"}`}
+                        ? 'expanded'
+                        : 'collapsed'}`}
                     aria-expanded={errorLogsExpanded}>
                     <Linkify>
-                        <div className="error-msg">{error.logs.join("\n").trim()}</div>
+                        <div className="error-msg">{error.logs.join('\n').trim()}</div>
                     </Linkify>
                 </div>
             </div>
@@ -107,8 +107,8 @@ function Information ({
         ? (
             <div className="expand_collapse warnings-container">
                 <h4 className={`expand_trigger ${warningsExpanded
-                    ? "expanded"
-                    : "collapsed"}`}
+                    ? 'expanded'
+                    : 'collapsed'}`}
                 onClick={() => setWarningsExpanded(!warningsExpanded)}>
                     <span className="icon-arrow-open-down"></span>
                     <span className="icon-arrow-open-right"></span>
@@ -116,11 +116,11 @@ function Information ({
                 </h4>
                 <div id="warnings"
                     className={`expand_target warnings-container alert alert-warning ${warningsExpanded
-                        ? "expanded"
-                        : "collapsed"}`}
+                        ? 'expanded'
+                        : 'collapsed'}`}
                     aria-expanded={warningsExpanded}>
                     <Linkify componentDecorator={linkDecorator}>
-                        <div className="warnings-msg">{warnings.map((warning, index) => (index + 1).toString() + ")" + warning.trim()).join("\n\n")}</div>
+                        <div className="warnings-msg">{warnings.map((warning, index) => (index + 1).toString() + ')' + warning.trim()).join('\n\n')}</div>
                     </Linkify>
                 </div>
             </div>
@@ -143,9 +143,9 @@ function Information ({
     };
 
     const toggleVisibility = () => {
-        tokenInput.current.type = tokenInput.current.type === "text"
-            ? "password"
-            : "text";
+        tokenInput.current.type = tokenInput.current.type === 'text'
+            ? 'password'
+            : 'text';
     };
 
     const authenticate = async (token) => {
@@ -153,7 +153,7 @@ function Information ({
         dispatch(updateAuthStatus(token.trim()));
 
         // Reset local state variable which was used to hold user's input for token.
-        setToken("");
+        setToken('');
     };
 
     return (
@@ -191,8 +191,8 @@ function Information ({
                                 <div className='flex-item-2'>
                                     <span id="spinner"
                                         className={details.spinner
-                                            ? "show"
-                                            : "hidden"}
+                                            ? 'show'
+                                            : 'hidden'}
                                     ></span>
                                     {details.label}
                                 </div>
@@ -207,16 +207,16 @@ function Information ({
                                     <>
                                         <div onClick={() => { if (showToken) setShowToken(false); }}
                                             className={`${showToken
-                                                ? "passive-link"
-                                                : ""} flex-item-1`}
+                                                ? 'passive-link'
+                                                : ''} flex-item-1`}
                                         ><span id={`${showToken
-                                                ? "offset"
-                                                : ""}`}>{isAuthenticated
+                                                ? 'offset'
+                                                : ''}`}>{isAuthenticated
                                                     ? showToken
-                                                        ? "(Hide Token)"
-                                                        : "Authenticated!"
-                                                    : "Please Authenticate" }</span>
-                                            {(isAuthenticated && !showToken) && <span id='icon-small' className={"alert_icon icon-alert-success flex-item-1"} />}
+                                                        ? '(Hide Token)'
+                                                        : 'Authenticated!'
+                                                    : 'Please Authenticate' }</span>
+                                            {(isAuthenticated && !showToken) && <span id='icon-small' className={'alert_icon icon-alert-success flex-item-1'} />}
                                         </div>
                                         <>
                                             {isAuthenticated
@@ -224,10 +224,10 @@ function Information ({
                                                     <div className='flex-item-2'>
                                                         <span onClick={viewToken}
                                                             className={`${!showToken
-                                                                ? "passive-link"
-                                                                : ""} flex-item-1`} > {showToken
+                                                                ? 'passive-link'
+                                                                : ''} flex-item-1`} > {showToken
                                                                 ? `${authToken}`
-                                                                : "(View token)"}</span>
+                                                                : '(View token)'}</span>
                                                     </div>
                                                 </>
                                                 : <div className="flex-item-2">
@@ -265,8 +265,8 @@ function Information ({
 
 // TODO: If children is required test fails expected number of calls is wrong.
 Information.propTypes = {
-    "closeHandler": PropTypes.func.isRequired,
-    "children": PropTypes.oneOfType([PropTypes.node, PropTypes.arrayOf(PropTypes.node)])
+    closeHandler: PropTypes.func.isRequired,
+    children: PropTypes.oneOfType([PropTypes.node, PropTypes.arrayOf(PropTypes.node)])
 };
 
 export default Information;

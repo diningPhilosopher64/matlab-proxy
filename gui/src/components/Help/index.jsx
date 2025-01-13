@@ -1,15 +1,15 @@
 // Copyright 2020-2025 The MathWorks, Inc.
 
-import React from "react";
-import { useSelector } from "react-redux";
-import PropTypes from "prop-types";
-import "./Help.css";
+import React from 'react';
+import { useSelector } from 'react-redux';
+import PropTypes from 'prop-types';
+import './Help.css';
 
 import {
     selectOverlayHidable,
     selectEnvConfig,
     selectIntegrationName
-} from "../../selectors";
+} from '../../selectors';
 
 function Help ({
     closeHandler,
@@ -68,8 +68,8 @@ function Help ({
 
 // TODO: If dismiss handler is required it causes weird failures in test
 Help.propTypes = {
-    "closeHandler": PropTypes.func.isRequired,
-    "dismissAllHandler": PropTypes.func
+    closeHandler: PropTypes.func.isRequired,
+    dismissAllHandler: PropTypes.func
 };
 
 export default Help;
