@@ -31,6 +31,7 @@ from matlab_proxy.util.mwi.exceptions import (
     LicensingError,
     MatlabError,
     OnlineLicensingError,
+    MatlabInstallError,
     UIVisibleFatalError,
     XvfbError,
     LockAcquisitionError,
@@ -92,7 +93,6 @@ class AppState:
 
         if self.error is not None:
             self.logs["matlab"].clear()
-            return
 
         # Keep track of when the Embedded connector starts.
         # Would be initialized appropriately by get_embedded_connector_state() task.
@@ -1107,6 +1107,11 @@ class AppState:
         Returns:
             (asyncio.subprocess.Process | psutil.Process): If process creation is successful, else return None.
         """
+        if not self.settings["matlab_cmd"]:
+            raise MatlabInstallError(
+                "Unable to find MATLAB on the system PATH. Add MATLAB to the system PATH, and restart matlab-proxy."
+            )
+
         if system.is_posix():
             import pty
 
@@ -1326,7 +1331,13 @@ class AppState:
         # Start MATLAB Process
         logger.debug("Starting MATLAB")
 
-        matlab = await self.__start_matlab_process(matlab_env)
+        try:
+            matlab = await self.__start_matlab_process(matlab_env)
+
+        except MatlabInstallError as err:
+            log_error(logger, err)
+            self.error = err
+            matlab = None
 
         # Release the lock after MATLAB process has started.
         await self.matlab_state_updater_lock.release()
