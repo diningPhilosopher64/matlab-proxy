@@ -1,4 +1,4 @@
-# Copyright 2020-2024 The MathWorks, Inc.
+# Copyright 2020-2025 The MathWorks, Inc.
 
 import datetime
 import os
@@ -288,7 +288,7 @@ def get(config_name=matlab_proxy.get_default_config_name(), dev=False):
 
         except UIVisibleFatalError as error:
             # Exceptions of this kind must propagate to the UI.
-            # Returning settings with some preset values for matlab_settings will
+            # Return with some preset values for matlab_settings will
             # allow for the app to start up and display the error in the UI.
             logger.error(f"Exception raised during initialization: {error}")
             settings["error"] = error
@@ -627,6 +627,12 @@ def _sanitize_file_path_for_matlab(filepath: str) -> str:
 
 
 def __get_matlab_code_to_execute():
+    """Returns the code that needs to run on MATLAB startup.
+    Will check for user provided custom MATLAB code and execute it along with the default startup script.
+
+    Returns:
+        tuple: With the first value representing whether there is custom MATLAB code to execute, and the second value representing the MATLAB code to execute.
+    """
     matlab_code_dir = Path(__file__).resolve().parent / "matlab"
     matlab_startup_file = str(matlab_code_dir / "startup.m")
     matlab_code_file = str(matlab_code_dir / "evaluateUserMatlabCode.m")
@@ -648,6 +654,11 @@ def __get_matlab_code_to_execute():
 
 
 def __get_nlm_conn_str():
+    """Get the Network License Manager (NLM) connection string.
+
+    Returns:
+        str: The NLM connection string provided by the MLM_LICENSE_FILE environment variable.
+    """
     # NLM Connection String provided by MLM_LICENSE_FILE environment variable
     nlm_conn_str = mwi.validators.validate_mlm_license_file(
         os.environ.get(mwi_env.get_env_name_network_license_manager())
@@ -657,6 +668,14 @@ def __get_nlm_conn_str():
 
 
 def __get_mw_licensing_urls(ws_env_suffix):
+    """Get the MathWorks licensing URLs.
+
+    Args:
+        ws_env_suffix (str): The environment suffix for the licensing URLs.
+
+    Returns:
+        dict: A dictionary containing the MathWorks licensing URLs for authentication and entitlement.
+    """
     return {
         "mwa_api_endpoint": f"https://login{ws_env_suffix}.mathworks.com/authenticationws/service/v4",
         "mhlm_api_endpoint": f"https://licensing{ws_env_suffix}.mathworks.com/mls/service/v1/entitlement/list",
@@ -665,6 +684,16 @@ def __get_mw_licensing_urls(ws_env_suffix):
 
 
 def __get_matlab_cmd(matlab_executable_path, code_to_execute, nlm_conn_str):
+    """Construct the MATLAB command with appropriate flags and arguments.
+
+    Args:
+        matlab_executable_path (str): The path to the MATLAB executable.
+        code_to_execute (str): The MATLAB code to execute on startup.
+        nlm_conn_str (str): The Network License Manager connection string.
+
+    Returns:
+        list: A list of command-line arguments to launch MATLAB with the specified configuration.
+    """
     if not matlab_executable_path:
         return None
 
