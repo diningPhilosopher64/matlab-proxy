@@ -105,3 +105,15 @@ jobs:
 
       - name: Unit Test with pytest
         run: python3 -m pytest tests/unit
+
+  generate-code-coverage:
+    # Generates Code coverage and uploads it
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate Code Coverage XML
+        uses: ./.github/actions/generate-code-coverage
+        with:
+          codecov-token: ${{ secrets.CODECOV_TOKEN }}
