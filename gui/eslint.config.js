@@ -18,7 +18,7 @@ function cleanGlobals(globalsObject) {
 }
 
 export default [
-    { ignores: ['dist'] },
+    { ignores: ['build'] },
     {
         files: ['**/*.{js,jsx}'],
         languageOptions: {
