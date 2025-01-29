@@ -10,7 +10,6 @@
     "eslint:fix": "npx eslint . --fix",
     "preview": "vite preview",
     "test": "vitest --reporter=default",
-    "test:teamcity-reporter": "vitest --reporter=vitest-teamcity-reporter",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
