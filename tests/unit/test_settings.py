@@ -532,7 +532,7 @@ def test_get_matlab_cmd_posix(nlm_conn_str):
 
 @pytest.mark.skipif(
     platform.system() == "Linux" or platform.system() == "Darwin",
-    reason="Testing on Posix",
+    reason="Testing on Windows",
 )
 def test_get_matlab_cmd_windows():
     # Arrange
