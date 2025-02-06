@@ -475,7 +475,7 @@ def test_get_matlab_settings_custom_code(
     monkeypatch.setenv(mwi_env.get_env_name_custom_matlab_code(), custom_code)
 
     # Act
-    has_custom_code, code_to_execute = settings.__get_matlab_code_to_execute()
+    has_custom_code, code_to_execute = settings._get_matlab_code_to_execute()
     exception_present_in_matlab_cmd = "MATLABCustomStartupCodeError" in code_to_execute
 
     # Assert
@@ -489,7 +489,7 @@ def test_get_nlm_conn_str(monkeypatch):
     monkeypatch.setenv(mwi_env.get_env_name_network_license_manager(), test_nlm_str)
 
     # Act
-    nlm_conn_str = settings.__get_nlm_conn_str()
+    nlm_conn_str = settings._get_nlm_conn_str()
 
     # Assert
     assert nlm_conn_str == test_nlm_str
@@ -498,7 +498,7 @@ def test_get_nlm_conn_str(monkeypatch):
 @pytest.mark.parametrize("ws_env_suffix", ["", "-dev", "-test"])
 def test_get_mw_licensing_urls(ws_env_suffix):
     # Act
-    urls = settings.__get_mw_licensing_urls(ws_env_suffix)
+    urls = settings._get_mw_licensing_urls(ws_env_suffix)
 
     # Assert
     assert all(ws_env_suffix in url for url in urls.values())
@@ -509,14 +509,13 @@ def test_get_mw_licensing_urls(ws_env_suffix):
     reason="Testing on Posix",
 )
 @pytest.mark.parametrize("nlm_conn_str", [None, "1234@testserver"])
-def test_get_matlab_cmd_posix(nlm_conn_str, mocker):
+def test_get_matlab_cmd_posix(nlm_conn_str):
     # Arrange
-    mocker.patch("matlab_proxy.settings.system.is_windows", return_value=False)
     matlab_executable_path = "/path/to/matlab"
     code_to_execute = "disp('Test')"
 
     # Act
-    cmd = settings.__get_matlab_cmd(
+    cmd = settings._get_matlab_cmd(
         matlab_executable_path, code_to_execute, nlm_conn_str
     )
 
@@ -535,14 +534,13 @@ def test_get_matlab_cmd_posix(nlm_conn_str, mocker):
     platform.system() == "Linux" or platform.system() == "Darwin",
     reason="Testing on Posix",
 )
-def test_get_matlab_cmd_windows(mocker):
-    # Arrnage
-    mocker.patch("matlab_proxy.settings.system.is_windows", return_value=True)
+def test_get_matlab_cmd_windows():
+    # Arrange
     matlab_executable_path = "C:\\path\\to\\matlab.exe"
     code_to_execute = "disp('Test')"
 
     # Act
-    cmd = settings.__get_matlab_cmd(matlab_executable_path, code_to_execute, None)
+    cmd = settings._get_matlab_cmd(matlab_executable_path, code_to_execute, None)
 
     # Assert
     assert "-noDisplayDesktop" in cmd
@@ -565,7 +563,7 @@ def test_get_matlab_cmd_with_mpa_flags(mocker):
     code_to_execute = "disp('Test')"
 
     # Act
-    cmd = settings.__get_matlab_cmd(matlab_executable_path, code_to_execute, None)
+    cmd = settings._get_matlab_cmd(matlab_executable_path, code_to_execute, None)
 
     # Assert
     assert "-mpa" in cmd
@@ -584,7 +582,7 @@ def test_get_matlab_cmd_with_startup_profiling(mocker):
     code_to_execute = "disp('Test')"
 
     # Act
-    cmd = settings.__get_matlab_cmd(matlab_executable_path, code_to_execute, None)
+    cmd = settings._get_matlab_cmd(matlab_executable_path, code_to_execute, None)
 
     # Assert
     assert "-timing" in cmd

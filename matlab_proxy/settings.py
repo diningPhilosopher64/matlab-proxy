@@ -47,7 +47,7 @@ def get_process_startup_timeout():
             return int(custom_startup_timeout)
 
         else:
-            logger.warn(
+            logger.warning(
                 f"The value set for {mwi_env.get_env_name_process_startup_timeout()}:{custom_startup_timeout} is not a number. Using {constants.DEFAULT_PROCESS_START_TIMEOUT} as the default value"
             )
             return constants.DEFAULT_PROCESS_START_TIMEOUT
@@ -131,11 +131,8 @@ def get_matlab_version(matlab_root_path):
     # If the matlab on system PATH is a wrapper script, then it would not be possible to determine MATLAB root (inturn not being able to determine MATLAB version)
     # unless MWI_CUSTOM_MATLAB_ROOT is set. Raising only a warning as the matlab version is only required for communicating with MHLM.
     if not matlab_version:
-        logger.warn(
-            f"Could not determine MATLAB version from MATLAB root path: {matlab_root_path}"
-        )
-        logger.warn(
-            f"Set {mwi_env.get_env_name_custom_matlab_root()} to a valid MATLAB root path"
+        logger.warning(
+            f"Could not determine MATLAB version from MATLAB root path: {matlab_root_path}. Set {mwi_env.get_env_name_custom_matlab_root()} to a valid MATLAB root path"
         )
 
     return matlab_version
@@ -282,42 +279,7 @@ def get(config_name=matlab_proxy.get_default_config_name(), dev=False):
             logger.warning(warning)
             settings["warnings"].append(warning)
 
-        try:
-            # Update settings with matlab specific values.
-            settings.update(get_matlab_settings())
-
-        except UIVisibleFatalError as error:
-            # Exceptions of this kind must propagate to the UI.
-            # Return with some preset values for matlab_settings will
-            # allow for the app to start up and display the error in the UI.
-            logger.error(f"Exception raised during initialization: {error}")
-            settings["error"] = error
-
-            # Set to None as matlab root path couldn't be determined
-            matlab_executable_path = matlab_root_path = matlab_version = None
-            matlab_version_determined_on_startup = False
-
-            ws_env, ws_env_suffix = get_ws_env_settings()
-            mw_licensing_urls = __get_mw_licensing_urls(ws_env_suffix)
-
-            has_custom_code_to_execute, code_to_execute = __get_matlab_code_to_execute()
-            nlm_conn_str = __get_nlm_conn_str()
-            matlab_cmd = __get_matlab_cmd(
-                matlab_executable_path, code_to_execute, nlm_conn_str
-            )
-
-            matlab_settings = {
-                "matlab_version": matlab_version,
-                "matlab_path": matlab_root_path,
-                "matlab_version_determined_on_startup": matlab_version_determined_on_startup,
-                "matlab_cmd": matlab_cmd,
-                "ws_env": ws_env,
-                **mw_licensing_urls,
-                "nlm_conn_str": nlm_conn_str,
-                "has_custom_code_to_execute": has_custom_code_to_execute,
-            }
-
-            settings.update(matlab_settings)
+        settings.update(get_matlab_settings())
 
     return settings
 
@@ -401,15 +363,22 @@ def get_matlab_settings():
     Unless they are of type UIVisibleFatalError
     """
 
-    matlab_executable_path, matlab_root_path = get_matlab_executable_and_root_path()
-    matlab_version = get_matlab_version(matlab_root_path)
-    matlab_version_determined_on_startup = True if matlab_version else False
-    nlm_conn_str = __get_nlm_conn_str()
     ws_env, ws_env_suffix = get_ws_env_settings()
+    mw_licensing_urls = _get_mw_licensing_urls(ws_env_suffix)
+    nlm_conn_str = _get_nlm_conn_str()
+    has_custom_code_to_execute, code_to_execute = _get_matlab_code_to_execute()
 
-    has_custom_code_to_execute, code_to_execute = __get_matlab_code_to_execute()
-    matlab_cmd = __get_matlab_cmd(matlab_executable_path, code_to_execute, nlm_conn_str)
-    mw_licensing_urls = __get_mw_licensing_urls(ws_env_suffix)
+    try:
+        matlab_executable_path, matlab_root_path = get_matlab_executable_and_root_path()
+
+    except UIVisibleFatalError as error:
+        logger.error(f"Exception raised during initialization: {error}")
+        # Set matlab root and executable path to None as MATLAB root could not be determined
+        matlab_executable_path = matlab_root_path = None
+
+    matlab_version = get_matlab_version(matlab_root_path)
+    matlab_version_determined_on_startup = bool(matlab_version)
+    matlab_cmd = _get_matlab_cmd(matlab_executable_path, code_to_execute, nlm_conn_str)
 
     return {
         "matlab_version": matlab_version,
@@ -626,7 +595,7 @@ def _sanitize_file_path_for_matlab(filepath: str) -> str:
     return filepath_with_single_quotes_escaped
 
 
-def __get_matlab_code_to_execute():
+def _get_matlab_code_to_execute():
     """Returns the code that needs to run on MATLAB startup.
     Will check for user provided custom MATLAB code and execute it along with the default startup script.
 
@@ -653,7 +622,7 @@ def __get_matlab_code_to_execute():
     return has_custom_code_to_execute, code_to_execute
 
 
-def __get_nlm_conn_str():
+def _get_nlm_conn_str():
     """Get the Network License Manager (NLM) connection string.
 
     Returns:
@@ -667,7 +636,7 @@ def __get_nlm_conn_str():
     return nlm_conn_str
 
 
-def __get_mw_licensing_urls(ws_env_suffix):
+def _get_mw_licensing_urls(ws_env_suffix):
     """Get the MathWorks licensing URLs.
 
     Args:
@@ -683,7 +652,7 @@ def __get_mw_licensing_urls(ws_env_suffix):
     }
 
 
-def __get_matlab_cmd(matlab_executable_path, code_to_execute, nlm_conn_str):
+def _get_matlab_cmd(matlab_executable_path, code_to_execute, nlm_conn_str):
     """Construct the MATLAB command with appropriate flags and arguments.
 
     Args:

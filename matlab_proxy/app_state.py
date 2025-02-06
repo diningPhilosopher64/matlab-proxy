@@ -10,15 +10,15 @@ import time
 import uuid
 from collections import deque
 from datetime import datetime, timedelta, timezone
-from typing import Final, Optional, Callable
+from typing import Callable, Final, Optional
 
 from matlab_proxy import util
 from matlab_proxy.constants import (
+    CHECK_MATLAB_STATUS_INTERVAL_SECONDS,
     CONNECTOR_SECUREPORT_FILENAME,
     IS_CONCURRENCY_CHECK_ENABLED,
     MATLAB_LOGS_FILE_NAME,
     USER_CODE_OUTPUT_FILE_NAME,
-    CHECK_MATLAB_STATUS_INTERVAL_SECONDS,
 )
 from matlab_proxy.settings import get_process_startup_timeout
 from matlab_proxy.util import mw, mwi, system, windows
@@ -30,11 +30,10 @@ from matlab_proxy.util.mwi.exceptions import (
     FatalError,
     LicensingError,
     MatlabError,
-    OnlineLicensingError,
     MatlabInstallError,
+    OnlineLicensingError,
     UIVisibleFatalError,
     XvfbError,
-    LockAcquisitionError,
     log_error,
 )
 
