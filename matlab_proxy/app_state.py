@@ -90,9 +90,6 @@ class AppState:
         self.error = settings["error"]
         self.warnings = settings["warnings"]
 
-        if self.error is not None:
-            self.logs["matlab"].clear()
-
         # Keep track of when the Embedded connector starts.
         # Would be initialized appropriately by get_embedded_connector_state() task.
         self.embedded_connector_start_time = None

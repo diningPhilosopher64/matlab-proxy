@@ -367,6 +367,7 @@ def get_matlab_settings():
     mw_licensing_urls = _get_mw_licensing_urls(ws_env_suffix)
     nlm_conn_str = _get_nlm_conn_str()
     has_custom_code_to_execute, code_to_execute = _get_matlab_code_to_execute()
+    err = None
 
     try:
         matlab_executable_path, matlab_root_path = get_matlab_executable_and_root_path()
@@ -375,12 +376,14 @@ def get_matlab_settings():
         logger.error(f"Exception raised during initialization: {error}")
         # Set matlab root and executable path to None as MATLAB root could not be determined
         matlab_executable_path = matlab_root_path = None
+        err = error
 
     matlab_version = get_matlab_version(matlab_root_path)
     matlab_version_determined_on_startup = bool(matlab_version)
     matlab_cmd = _get_matlab_cmd(matlab_executable_path, code_to_execute, nlm_conn_str)
 
     return {
+        "error": err,
         "matlab_version": matlab_version,
         "matlab_path": matlab_root_path,
         "matlab_version_determined_on_startup": matlab_version_determined_on_startup,
