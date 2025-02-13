@@ -74,7 +74,7 @@ def get_matlab_executable_and_root_path():
         matlab_root_path = Path(custom_matlab_root_path)
 
         # Terminate process if invalid Custom Path was provided!
-        mwi.validators.validate_matlab_root_path(
+        matlab_root_path = mwi.validators.validate_matlab_root_path(
             matlab_root_path, is_custom_matlab_root=True
         )
 
@@ -101,10 +101,9 @@ def get_matlab_executable_and_root_path():
 
     # Control only gets here if custom matlab root was not set AND which matlab returned no results.
     # Note, error messages are formatted as multi-line strings and the front end displays them as is.
-    error_message = "Unable to find MATLAB on the system PATH. Add MATLAB to the system PATH, and restart matlab-proxy."
-
-    logger.error(error_message)
-    raise MatlabInstallError(error_message)
+    raise MatlabInstallError(
+        "Unable to find MATLAB on the system PATH. Add MATLAB to the system PATH, and restart matlab-proxy."
+    )
 
 
 def get_matlab_version(matlab_root_path):
