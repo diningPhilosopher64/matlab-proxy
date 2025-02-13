@@ -504,15 +504,12 @@ def test_get_mw_licensing_urls(ws_env_suffix):
     assert all(ws_env_suffix in url for url in urls.values())
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows",
-    reason="Testing on Posix",
-)
 @pytest.mark.parametrize("nlm_conn_str", [None, "1234@testserver"])
-def test_get_matlab_cmd_posix(nlm_conn_str):
+def test_get_matlab_cmd_posix(nlm_conn_str, mocker):
     # Arrange
     matlab_executable_path = "/path/to/matlab"
     code_to_execute = "disp('Test')"
+    mocker.patch("matlab_proxy.settings.system.is_windows", return_value=False)
 
     # Act
     cmd = settings._get_matlab_cmd(
@@ -530,14 +527,11 @@ def test_get_matlab_cmd_posix(nlm_conn_str):
         assert "-licmode" not in cmd
 
 
-@pytest.mark.skipif(
-    platform.system() == "Linux" or platform.system() == "Darwin",
-    reason="Testing on Windows",
-)
-def test_get_matlab_cmd_windows():
+def test_get_matlab_cmd_windows(mocker):
     # Arrange
     matlab_executable_path = "C:\\path\\to\\matlab.exe"
     code_to_execute = "disp('Test')"
+    mocker.patch("matlab_proxy.settings.system.is_windows", return_value=True)
 
     # Act
     cmd = settings._get_matlab_cmd(matlab_executable_path, code_to_execute, None)
@@ -546,19 +540,14 @@ def test_get_matlab_cmd_windows():
     assert "-noDisplayDesktop" in cmd
     assert "-wait" in cmd
     assert "-log" in cmd
+    assert ".exe" in cmd[0]  # Assert .exe suffix in matlab_executable_path
 
 
 def test_get_matlab_cmd_with_mpa_flags(mocker):
     # Arrange
-    mocker.patch("matlab_proxy.settings.system.is_windows", return_value=False)
     mocker.patch(
         "matlab_proxy.settings.mwi_env.Experimental.is_mpa_enabled", return_value=True
     )
-    mocker.patch(
-        "matlab_proxy.settings.mwi_env.Experimental.get_mpa_flags",
-        return_value=["-mpa", "flag"],
-    )
-
     matlab_executable_path = "/path/to/matlab"
     code_to_execute = "disp('Test')"
 
@@ -566,8 +555,7 @@ def test_get_matlab_cmd_with_mpa_flags(mocker):
     cmd = settings._get_matlab_cmd(matlab_executable_path, code_to_execute, None)
 
     # Assert
-    assert "-mpa" in cmd
-    assert "flag" in cmd
+    assert all(mpa_flag in cmd for mpa_flag in mwi_env.Experimental.get_mpa_flags())
 
 
 def test_get_matlab_cmd_with_startup_profiling(mocker):
