@@ -574,3 +574,102 @@ def test_get_matlab_cmd_with_startup_profiling(mocker):
 
     # Assert
     assert "-timing" in cmd
+
+
+def test_get_matlab_settings_no_matlab_on_path(mocker):
+    # Arrange
+    mocker.patch("matlab_proxy.settings.shutil.which", return_value=None)
+
+    # Act
+    matlab_settings = settings.get_matlab_settings()
+
+    # Assert
+    assert isinstance(matlab_settings["error"], MatlabInstallError)
+
+
+def test_get_matlab_settings_matlab_softlink(mocker, tmp_path):
+    # Arrange
+    matlab_root_path = Path(tmp_path)
+    matlab_exec_path = matlab_root_path / "bin" / "matlab"
+    mocker.patch("matlab_proxy.settings.shutil.which", return_value=matlab_exec_path)
+    mocker.patch(
+        "matlab_proxy.settings.mwi.validators.validate_matlab_root_path",
+        return_value=matlab_root_path,
+    )
+
+    # Act
+    matlab_settings = settings.get_matlab_settings()
+
+    # Assert
+    assert matlab_settings["matlab_cmd"][0] == matlab_exec_path
+    assert matlab_settings["matlab_path"] == matlab_root_path
+    assert (
+        matlab_settings["matlab_version"] is None
+    )  # There's no VersionInfo.xml file in the mock setup
+
+
+def test_get_matlab_settings_matlab_wrapper(mocker, tmp_path):
+    # Arrange
+    matlab_exec_path = Path(tmp_path) / "matlab"
+    mocker.patch("matlab_proxy.settings.shutil.which", return_value=matlab_exec_path)
+    # mocker.patch("matlab_proxy.settings.mwi.validators.validate_matlab_root_path", return_value=matlab_root_path)
+
+    # Act
+    matlab_settings = settings.get_matlab_settings()
+
+    # Assert
+    assert matlab_settings["matlab_cmd"][0] == matlab_exec_path
+    assert (
+        matlab_settings["matlab_path"] is None
+    )  # Matlab root could not be determined because wrapper script is being used
+    assert matlab_settings["matlab_version"] is None
+    assert (
+        matlab_settings["error"] is None
+    )  # Error has to be None when matlab executable is on PATH but root path could not be determined
+
+
+def test_get_matlab_settings_valid_custom_matlab_root(mocker, monkeypatch, tmp_path):
+    # Arrange
+    matlab_root_path = Path(tmp_path)
+    matlab_exec_path = matlab_root_path / "bin" / "matlab"
+    matlab_version = "R2024b"
+    monkeypatch.setenv(mwi_env.get_env_name_custom_matlab_root(), str(matlab_root_path))
+    mocker.patch(
+        "matlab_proxy.settings.mwi.validators.validate_matlab_root_path",
+        return_value=matlab_root_path,
+    )
+    mocker.patch(
+        "matlab_proxy.settings.get_matlab_version", return_value=matlab_version
+    )
+
+    # Act
+    matlab_settings = settings.get_matlab_settings()
+
+    # Assert
+    assert matlab_settings["matlab_cmd"][0] == matlab_exec_path
+    assert matlab_settings["matlab_path"] == matlab_root_path
+    assert matlab_settings["matlab_version"] == matlab_version
+    assert matlab_settings["error"] is None
+
+
+def test_get_matlab_settings_invalid_custom_matlab_root(mocker, monkeypatch, tmp_path):
+    # Arrange
+    matlab_root_path = Path(tmp_path)
+    monkeypatch.setenv(mwi_env.get_env_name_custom_matlab_root(), str(matlab_root_path))
+
+    # Act
+    matlab_settings = settings.get_matlab_settings()
+
+    # Assert
+    # When custom MATLAB root is supplied, it must be the actual MATLAB root ie.
+    # VersionInfo.xml file must to be there
+    # matlab executable inside the bin folder must be there
+    # If not, MATLAB related settings should be None and custom MATLAB root error should be present
+    assert matlab_settings["matlab_cmd"] is None
+    assert matlab_settings["matlab_path"] is None
+    assert matlab_settings["matlab_version"] is None
+    assert (
+        isinstance(matlab_settings["error"], MatlabInstallError)
+        and mwi_env.get_env_name_custom_matlab_root()
+        in matlab_settings["error"].message
+    )
