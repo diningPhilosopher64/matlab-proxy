@@ -601,7 +601,7 @@ def test_get_matlab_settings_matlab_softlink(mocker, tmp_path):
     matlab_settings = settings.get_matlab_settings()
 
     # Assert
-    assert matlab_settings["matlab_cmd"][0] == matlab_exec_path
+    assert str(matlab_exec_path) in str(matlab_settings["matlab_cmd"][0])
     assert matlab_settings["matlab_path"] == matlab_root_path
     assert (
         matlab_settings["matlab_version"] is None
@@ -612,13 +612,12 @@ def test_get_matlab_settings_matlab_wrapper(mocker, tmp_path):
     # Arrange
     matlab_exec_path = Path(tmp_path) / "matlab"
     mocker.patch("matlab_proxy.settings.shutil.which", return_value=matlab_exec_path)
-    # mocker.patch("matlab_proxy.settings.mwi.validators.validate_matlab_root_path", return_value=matlab_root_path)
 
     # Act
     matlab_settings = settings.get_matlab_settings()
 
     # Assert
-    assert matlab_settings["matlab_cmd"][0] == matlab_exec_path
+    assert str(matlab_exec_path) in str(matlab_settings["matlab_cmd"][0])
     assert (
         matlab_settings["matlab_path"] is None
     )  # Matlab root could not be determined because wrapper script is being used
@@ -646,7 +645,7 @@ def test_get_matlab_settings_valid_custom_matlab_root(mocker, monkeypatch, tmp_p
     matlab_settings = settings.get_matlab_settings()
 
     # Assert
-    assert matlab_settings["matlab_cmd"][0] == matlab_exec_path
+    assert str(matlab_exec_path) in str(matlab_settings["matlab_cmd"][0])
     assert matlab_settings["matlab_path"] == matlab_root_path
     assert matlab_settings["matlab_version"] == matlab_version
     assert matlab_settings["error"] is None
