@@ -10,6 +10,8 @@ import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from aiohttp import CookieJar
+
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -18,6 +20,7 @@ from cryptography.x509.oid import NameOID
 import matlab_proxy
 from matlab_proxy import constants
 from matlab_proxy.constants import MWI_AUTH_TOKEN_NAME_FOR_HTTP
+from matlab_proxy import util
 from matlab_proxy.util import mwi, system
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi import token_auth
@@ -321,6 +324,13 @@ def get_server_settings(config_name):
         else f"{short_desc} - MATLAB Integration"
     )
 
+    cookie_jar = None
+    if mwi_env.Experimental.is_cookie_jar_enabled():
+        logger.info(
+            f"Environment variable {mwi_env.Experimental.get_env_name_enable_cookie_jar()} is set. matlab-proxy server will cache cookies from MATLAB"
+        )
+        cookie_jar = CookieJar(loop=util.get_event_loop(), unsafe=True)
+
     return {
         "create_xvfb_cmd": create_xvfb_cmd,
         "base_url": mwi.validators.validate_base_url(
@@ -359,6 +369,7 @@ def get_server_settings(config_name):
         "mwi_idle_timeout": mwi.validators.validate_idle_timeout(
             os.getenv(mwi_env.get_env_name_shutdown_on_idle_timeout())
         ),
+        "cookie_jar": cookie_jar,
     }
 
 

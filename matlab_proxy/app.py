@@ -557,6 +557,7 @@ async def matlab_view(req):
     matlab_protocol = req.app["settings"]["matlab_protocol"]
     mwapikey = req.app["settings"]["mwapikey"]
     matlab_base_url = f"{matlab_protocol}://127.0.0.1:{matlab_port}"
+    cookie_jar = req.app["settings"]["cookie_jar"]
 
     # If we are trying to send request to matlab while the matlab_port is still not assigned
     # by embedded connector, return service not available and log a message
@@ -580,8 +581,8 @@ async def matlab_view(req):
 
         async with aiohttp.ClientSession(
             trust_env=True,
-            cookies=req.cookies,
             connector=aiohttp.TCPConnector(ssl=False),
+            cookie_jar=cookie_jar,  # Pass cookie jar for web socket requests to MATLAB
         ) as client_session:
             try:
                 async with client_session.ws_connect(
@@ -649,6 +650,7 @@ async def matlab_view(req):
             trust_env=True,
             connector=aiohttp.TCPConnector(ssl=False),
             timeout=timeout,
+            cookie_jar=cookie_jar,  # Pass cookie jar for HTTP requests to MATLAB
         ) as client_session:
             try:
                 req_body = await transform_body(req)
@@ -670,7 +672,29 @@ async def matlab_view(req):
                     headers = res.headers.copy()
                     body = await res.read()
                     headers.update(req.app["settings"]["mwi_custom_http_headers"])
-                    return web.Response(headers=headers, status=res.status, body=body)
+
+                    response = web.Response(
+                        status=res.status, headers=headers, body=body
+                    )
+
+                    # Set cookies in the response to browser
+                    if cookie_jar:
+                        for cookie in cookie_jar:
+                            logger.debug(
+                                f"Cookie {cookie.key}={cookie.value} will be set in the response"
+                            )
+                            response.set_cookie(
+                                name=cookie.key,
+                                value=cookie.value,
+                                max_age=cookie.get("max-age"),
+                                expires=cookie.get("expires"),
+                                domain=cookie.get("domain"),
+                                path=cookie.get("path", "/"),
+                                secure=cookie.get("secure", False),
+                                httponly=cookie.get("httponly", False),
+                            )
+
+                    return response
 
             # Handles any pending HTTP requests from the browser when the MATLAB process is terminated before responding to them.
             except (
@@ -987,7 +1011,6 @@ def print_version_and_exit():
 
 def main():
     """Starting point of the integration. Creates the web app and runs indefinitely."""
-
     if util.parse_cli_args()["version"]:
         print_version_and_exit()
 
