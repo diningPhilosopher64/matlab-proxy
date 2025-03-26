@@ -266,6 +266,8 @@ def get(config_name=matlab_proxy.get_default_config_name(), dev=False):
             # Set NLM Connection string. Server will start using this connection string for licensing
             settings["nlm_conn_str"] = "123@nlm"
 
+            settings["cookie_jar"] = _get_cookie_jar()
+
     else:
         settings = {"error": None, "warnings": []}
 
@@ -324,12 +326,7 @@ def get_server_settings(config_name):
         else f"{short_desc} - MATLAB Integration"
     )
 
-    cookie_jar = None
-    if mwi_env.Experimental.is_cookie_jar_enabled():
-        logger.info(
-            f"Environment variable {mwi_env.Experimental.get_env_name_enable_cookie_jar()} is set. matlab-proxy server will cache cookies from MATLAB"
-        )
-        cookie_jar = CookieJar(loop=util.get_event_loop(), unsafe=True)
+    cookie_jar = _get_cookie_jar()
 
     return {
         "create_xvfb_cmd": create_xvfb_cmd,
@@ -711,3 +708,14 @@ def _get_matlab_cmd(matlab_executable_path, code_to_execute, nlm_conn_str):
         "-r",
         code_to_execute,
     ]
+
+
+def _get_cookie_jar():
+    cookie_jar = None
+    if mwi_env.Experimental.is_cookie_jar_enabled():
+        logger.info(
+            f"Environment variable {mwi_env.Experimental.get_env_name_enable_cookie_jar()} is set. matlab-proxy server will cache cookies from MATLAB"
+        )
+        cookie_jar = CookieJar(loop=util.get_event_loop(), unsafe=True)
+
+    return cookie_jar

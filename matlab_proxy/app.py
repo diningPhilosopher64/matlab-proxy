@@ -577,6 +577,22 @@ async def matlab_view(req):
         and req.method == "GET"
     ):
         ws_server = web.WebSocketResponse()
+
+        if cookie_jar:
+            for cookie in cookie_jar:
+                ws_server.set_cookie(
+                    name=cookie.key,
+                    value=cookie.value,
+                    max_age=cookie.get("max-age"),
+                    expires=cookie.get("expires"),
+                    domain=cookie.get("domain"),
+                    path=cookie.get("path", "/"),
+                    secure=cookie.get("secure", False),
+                    httponly=cookie.get("httponly", False),
+                )
+
+        # Cookies are inserted before the response is prepared.
+        # This will ensure that the cookies are sent to the client even for websocket handshake response
         await ws_server.prepare(req)
 
         async with aiohttp.ClientSession(
@@ -628,6 +644,10 @@ async def matlab_view(req):
                         ],
                         return_when=asyncio.FIRST_COMPLETED,
                     )
+
+                    # Set cookies in the websocket response to browser
+                    print("\n asdf cookie jar ", cookie_jar)
+
                     return ws_server
 
             except Exception as err:

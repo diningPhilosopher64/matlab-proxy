@@ -3,7 +3,6 @@
 import os
 import time
 import tempfile
-import platform
 
 import matlab_proxy
 import matlab_proxy.settings as settings
@@ -12,6 +11,7 @@ from pathlib import Path
 import pytest
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi.exceptions import MatlabInstallError
+from aiohttp import CookieJar
 
 """This file tests methods defined in settings.py file
 """
@@ -656,4 +656,23 @@ def test_get_matlab_settings_invalid_custom_matlab_root(mocker, monkeypatch, tmp
         isinstance(matlab_settings["error"], MatlabInstallError)
         and mwi_env.get_env_name_custom_matlab_root()
         in matlab_settings["error"].message
+    )
+
+
+def test_get_cookie_jar(monkeypatch):
+    """Test to check if Cookie Jar is returned as a part of server settings"""
+    monkeypatch.setenv(mwi_env.Experimental.get_env_name_enable_cookie_jar(), "false")
+    assert (
+        settings.get_server_settings(matlab_proxy.get_default_config_name())[
+            "cookie_jar"
+        ]
+        is None
+    )
+
+    monkeypatch.setenv(mwi_env.Experimental.get_env_name_enable_cookie_jar(), "true")
+    assert isinstance(
+        settings.get_server_settings(matlab_proxy.get_default_config_name())[
+            "cookie_jar"
+        ],
+        CookieJar,
     )
