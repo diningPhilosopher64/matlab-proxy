@@ -6,7 +6,7 @@ import json
 import platform
 import random
 import time
-from datetime import timedelta, timezone, datetime
+from datetime import timedelta, timezone
 from http import HTTPStatus, cookies
 
 import pytest
@@ -236,8 +236,8 @@ class FakeServer:
     Setting up the server in the context of Pytest.
     """
 
-    def __init__(self, loop, aiohttp_client):
-        self.loop = loop
+    def __init__(self, event_loop, aiohttp_client):
+        self.loop = event_loop
         self.aiohttp_client = aiohttp_client
 
     def __enter__(self):
@@ -256,7 +256,11 @@ def mock_request(mocker):
     req = mocker.MagicMock()
     req.app = {
         "state": mocker.MagicMock(matlab_port=8000),
-        "settings": {"matlab_protocol": "http", "mwapikey": "test-key"},
+        "settings": {
+            "matlab_protocol": "http",
+            "mwapikey": "test-key",
+            "cookie_jar": None,
+        },
     }
     req.headers = CIMultiDict()
     req.cookies = {}
@@ -275,7 +279,7 @@ def mock_messages(mocker):
 
 
 @pytest.fixture(name="test_server")
-def test_server_fixture(loop, aiohttp_client, monkeypatch, request):
+def test_server_fixture(event_loop, aiohttp_client, monkeypatch, request):
     """A pytest fixture which yields a test server to be used by tests.
 
     Args:
@@ -298,7 +302,7 @@ def test_server_fixture(loop, aiohttp_client, monkeypatch, request):
         monkeypatch.setenv(env_var_name, env_var_value)
 
     try:
-        with FakeServer(loop, aiohttp_client) as test_server:
+        with FakeServer(event_loop, aiohttp_client) as test_server:
             yield test_server
 
     except ProcessLookupError:
@@ -308,7 +312,6 @@ def test_server_fixture(loop, aiohttp_client, monkeypatch, request):
         # Cleaning up the env variable related to auth token
         for env_var_name, _ in default_env_vars_for_testing:
             monkeypatch.delenv(env_var_name, raising="False")
-
 
 
 async def test_get_status_route(test_server):
@@ -1225,9 +1228,9 @@ async def test_cookie_jar_http_request(proxy_payload, test_server):
     actual_custom_cookie.set("custom_cookie", "cookie_value", "cookie_value")
     actual_custom_cookie["domain"] = "example.com"
     actual_custom_cookie["path"] = "/"
-    actual_custom_cookie["expires"] = (datetime.now() + timedelta(days=1)).strftime(
-        "%a, %d-%b-%Y %H:%M:%S GMT"
-    )
+    actual_custom_cookie["expires"] = (
+        datetime.datetime.now() + timedelta(days=1)
+    ).strftime("%a, %d-%b-%Y %H:%M:%S GMT")
 
     # Update cookie in cookie jar
     test_server.app["settings"]["cookie_jar"].update_cookies(
@@ -1274,9 +1277,9 @@ async def test_cookie_jar_web_socket(proxy_payload, test_server):
     actual_custom_cookie.set("custom_cookie", "cookie_value", "cookie_value")
     actual_custom_cookie["domain"] = "example.com"
     actual_custom_cookie["path"] = "/"
-    actual_custom_cookie["expires"] = (datetime.now() + timedelta(days=1)).strftime(
-        "%a, %d-%b-%Y %H:%M:%S GMT"
-    )
+    actual_custom_cookie["expires"] = (
+        datetime.datetime.now() + timedelta(days=1)
+    ).strftime("%a, %d-%b-%Y %H:%M:%S GMT")
 
     # Update cookie in cookie jar
     test_server.app["settings"]["cookie_jar"].update_cookies(
