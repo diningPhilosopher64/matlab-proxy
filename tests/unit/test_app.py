@@ -1293,10 +1293,11 @@ async def test_cookie_jar_web_socket(proxy_payload, test_server):
         "/http_ws_request.html/",
         headers={
             # Headers required to initiate a websocket connection
+            # First 2 headers are required for the connection upgrade             
             "Connection": "upgrade",
             "upgrade": "websocket",
-            "Sec-WebSocket-Version": "13",
-            "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+            "Sec-WebSocket-Version": "13", # Required for initiating the websocket handshake with aiohttp server
+            "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==", # Optional unique key for the websocket handshake
         },
     ) as res:
         expected_custom_cookie = res.cookies["custom_cookie"]
