@@ -1216,7 +1216,7 @@ async def test_check_for_concurrency(test_server):
 @pytest.mark.parametrize(
     "test_server",
     [
-        [(mwi_env.Experimental.get_env_name_enable_cookie_jar(), "True")],
+        [(mwi_env.Experimental.get_env_name_use_cookie_cache(), "True")],
     ],
     indirect=True,
 )
@@ -1265,7 +1265,7 @@ async def test_cookie_jar_http_request(proxy_payload, test_server):
 @pytest.mark.parametrize(
     "test_server",
     [
-        [(mwi_env.Experimental.get_env_name_enable_cookie_jar(), "True")],
+        [(mwi_env.Experimental.get_env_name_use_cookie_cache(), "True")],
     ],
     indirect=True,
 )

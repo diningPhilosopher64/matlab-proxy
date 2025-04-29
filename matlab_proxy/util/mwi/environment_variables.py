@@ -200,11 +200,11 @@ class Experimental:
         return _is_env_set_to_true(Experimental.get_env_name_profile_matlab_startup())
 
     @staticmethod
-    def get_env_name_enable_cookie_jar():
+    def get_env_name_use_cookie_cache():
         """Returns the environment variable name used to enable cookie jar support for matlab-proxy"""
-        return "MWI_ENABLE_COOKIE_JAR"
+        return "MWI_USE_COOKIE_CACHE"
 
     @staticmethod
-    def is_cookie_jar_enabled():
+    def should_use_cookie_cache():
         """Returns true if the cookie jar support is enabled."""
-        return _is_env_set_to_true(Experimental.get_env_name_enable_cookie_jar())
+        return _is_env_set_to_true(Experimental.get_env_name_use_cookie_cache())

@@ -712,9 +712,9 @@ def _get_matlab_cmd(matlab_executable_path, code_to_execute, nlm_conn_str):
 
 def _get_cookie_jar():
     cookie_jar = None
-    if mwi_env.Experimental.is_cookie_jar_enabled():
+    if mwi_env.Experimental.should_use_cookie_cache():
         logger.info(
-            f"Environment variable {mwi_env.Experimental.get_env_name_enable_cookie_jar()} is set. matlab-proxy server will cache cookies from MATLAB"
+            f"Environment variable {mwi_env.Experimental.get_env_name_use_cookie_cache()} is set. matlab-proxy server will cache cookies from MATLAB"
         )
         cookie_jar = CookieJar(loop=util.get_event_loop(), unsafe=True)
 
