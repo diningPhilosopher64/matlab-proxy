@@ -661,7 +661,7 @@ def test_get_matlab_settings_invalid_custom_matlab_root(mocker, monkeypatch, tmp
 
 def test_get_cookie_jar(monkeypatch):
     """Test to check if Cookie Jar is returned as a part of server settings"""
-    monkeypatch.setenv(mwi_env.Experimental.get_env_name_enable_cookie_jar(), "false")
+    monkeypatch.setenv(mwi_env.Experimental.get_env_name_use_cookie_cache(), "false")
     assert (
         settings.get_server_settings(matlab_proxy.get_default_config_name())[
             "cookie_jar"
@@ -669,7 +669,7 @@ def test_get_cookie_jar(monkeypatch):
         is None
     )
 
-    monkeypatch.setenv(mwi_env.Experimental.get_env_name_enable_cookie_jar(), "true")
+    monkeypatch.setenv(mwi_env.Experimental.get_env_name_use_cookie_cache(), "true")
     assert isinstance(
         settings.get_server_settings(matlab_proxy.get_default_config_name())[
             "cookie_jar"
