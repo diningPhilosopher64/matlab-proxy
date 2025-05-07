@@ -309,7 +309,7 @@ def test_server_fixture(event_loop, aiohttp_client, monkeypatch, request):
         pass
 
     finally:
-        # Cleaning up the env variable related to auth token
+        # Cleaning up the environment variables set for testing
         for env_var_name, _ in default_env_vars_for_testing:
             monkeypatch.delenv(env_var_name, raising="False")
 
@@ -1232,32 +1232,21 @@ async def test_cookie_jar_http_request(proxy_payload, test_server):
         datetime.datetime.now() + timedelta(days=1)
     ).strftime("%a, %d-%b-%Y %H:%M:%S GMT")
 
+    await wait_for_matlab_to_be_up(test_server, test_constants.ONE_SECOND_DELAY)
+
     # Update cookie in cookie jar
     test_server.app["settings"]["cookie_jar"].update_cookies(
         {"cookie": actual_custom_cookie}
     )
 
-    max_tries = 5
-    count = 0
-
-    while True:
-        # Act
-        resp = await test_server.get(
-            "/http_get_request.html", data=json.dumps(proxy_payload)
-        )
+    # Act
+    async with await test_server.get(
+        "/http_get_request.html", data=json.dumps(proxy_payload)
+    ) as resp:
+        expected_custom_cookie = resp.cookies["custom_cookie"]
 
         # Assert
-        if resp.status in (HTTPStatus.NOT_FOUND, HTTPStatus.SERVICE_UNAVAILABLE):
-            time.sleep(1)
-            count += 1
-
-        else:
-            expected_custom_cookie = resp.cookies["custom_cookie"]
-            assert actual_custom_cookie == expected_custom_cookie
-            break
-
-        if count > max_tries:
-            raise ConnectionError
+        assert actual_custom_cookie == expected_custom_cookie
 
 
 # Pytest construct to set the environment variable `MWI_ENABLE_COOKIE_JAR` to `"True"`
