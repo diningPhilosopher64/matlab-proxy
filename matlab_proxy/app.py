@@ -8,10 +8,12 @@ import secrets
 import sys
 
 import aiohttp
+import http
 from aiohttp import client_exceptions, web
 from aiohttp_session import setup as aiohttp_session_setup
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 from cryptography import fernet
+from typing import Union
 
 import matlab_proxy
 from matlab_proxy import constants, settings, util
@@ -126,6 +128,33 @@ def create_status_response(app, loadUrl=None, client_id=None, is_active_client=N
         status["isActiveClient"] = is_active_client
 
     return web.json_response(status)
+
+
+def _set_cookie_in_response(
+    resp: Union[web.WebSocketResponse, aiohttp.ClientResponse],
+    cookie: http.cookies.SimpleCookie,
+) -> Union[web.WebSocketResponse, aiohttp.ClientResponse]:
+    """Adds the provided cookie to the given response object.
+
+    Args:
+        resp (web.WebSocketResponse | aiohttp.ClientResponse):Either ClientResponse or WebSocketResponse object to which the cookie will be added.
+        cookie (http.cookies.SimpleCookie): The cookie to be added to the response.
+
+    Returns:
+        Union[web.WebSocketResponse | aiohttp.ClientResponse]: The response object with the cookie added.
+    """
+    resp.set_cookie(
+        name=cookie.key,
+        value=cookie.value,
+        max_age=cookie.get("max-age"),
+        expires=cookie.get("expires"),
+        domain=cookie.get("domain"),
+        path=cookie.get("path", "/"),
+        secure=cookie.get("secure", False),
+        httponly=cookie.get("httponly", False),
+    )
+
+    return resp
 
 
 @token_auth.authenticate_access_decorator
@@ -578,21 +607,12 @@ async def matlab_view(req):
     ):
         ws_server = web.WebSocketResponse()
 
+        # Insert cookies before the response is prepared.
+        # This will ensure that the cookies are sent to the client even for websocket handshake response
         if cookie_jar:
             for cookie in cookie_jar:
-                ws_server.set_cookie(
-                    name=cookie.key,
-                    value=cookie.value,
-                    max_age=cookie.get("max-age"),
-                    expires=cookie.get("expires"),
-                    domain=cookie.get("domain"),
-                    path=cookie.get("path", "/"),
-                    secure=cookie.get("secure", False),
-                    httponly=cookie.get("httponly", False),
-                )
+                ws_server = _set_cookie_in_response(ws_server, cookie)
 
-        # Cookies are inserted before the response is prepared.
-        # This will ensure that the cookies are sent to the client even for websocket handshake response
         await ws_server.prepare(req)
 
         async with aiohttp.ClientSession(
@@ -644,9 +664,6 @@ async def matlab_view(req):
                         ],
                         return_when=asyncio.FIRST_COMPLETED,
                     )
-
-                    # Set cookies in the websocket response to browser
-                    print("\n asdf cookie jar ", cookie_jar)
 
                     return ws_server
 
@@ -703,16 +720,7 @@ async def matlab_view(req):
                             logger.debug(
                                 f"Cookie {cookie.key}={cookie.value} will be set in the response"
                             )
-                            response.set_cookie(
-                                name=cookie.key,
-                                value=cookie.value,
-                                max_age=cookie.get("max-age"),
-                                expires=cookie.get("expires"),
-                                domain=cookie.get("domain"),
-                                path=cookie.get("path", "/"),
-                                secure=cookie.get("secure", False),
-                                httponly=cookie.get("httponly", False),
-                            )
+                            response = _set_cookie_in_response(response, cookie)
 
                     return response
 
