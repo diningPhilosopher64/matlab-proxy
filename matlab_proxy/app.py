@@ -616,6 +616,9 @@ async def matlab_view(req):
         await ws_server.prepare(req)
 
         async with aiohttp.ClientSession(
+            cookies=(
+                None if cookie_jar else req.cookies
+            ),  # If cookie jar is not provided, use the cookies from the incoming request
             trust_env=True,
             connector=aiohttp.TCPConnector(ssl=False),
             cookie_jar=cookie_jar,  # Pass cookie jar for web socket requests to MATLAB
@@ -687,7 +690,8 @@ async def matlab_view(req):
             trust_env=True,
             connector=aiohttp.TCPConnector(ssl=False),
             timeout=timeout,
-            cookie_jar=cookie_jar,  # Pass cookie jar for HTTP requests to MATLAB
+            cookie_jar=cookie_jar,  # Pass cookie jar for HTTP requests to MATLAB.
+            # If cookie jar is not enabled, cookies are passed in request headers to the Embedded connector below.
         ) as client_session:
             try:
                 req_body = await transform_body(req)
