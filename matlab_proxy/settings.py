@@ -223,6 +223,7 @@ def get_dev_settings(config):
         "is_xvfb_available": False,
         "is_windowmanager_available": False,
         "mwi_idle_timeout": None,
+        "cookie_jar": _get_cookie_jar(),
     }
 
 
@@ -265,8 +266,6 @@ def get(config_name=matlab_proxy.get_default_config_name(), dev=False):
 
             # Set NLM Connection string. Server will start using this connection string for licensing
             settings["nlm_conn_str"] = "123@nlm"
-
-            settings["cookie_jar"] = _get_cookie_jar()
 
     else:
         settings = {"error": None, "warnings": []}
