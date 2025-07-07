@@ -30,6 +30,8 @@ from matlab_proxy.util.mwi.exceptions import (
     UIVisibleFatalError,
 )
 
+from matlab_proxy.util.cookie_jar import SimpleCookieJar
+
 logger = mwi.logger.get()
 
 
@@ -715,6 +717,6 @@ def _get_cookie_jar():
         logger.info(
             f"Environment variable {mwi_env.Experimental.get_env_name_use_cookie_cache()} is set. matlab-proxy server will cache cookies from MATLAB"
         )
-        cookie_jar = CookieJar(loop=util.get_event_loop(), unsafe=True)
+        cookie_jar = SimpleCookieJar()
 
     return cookie_jar

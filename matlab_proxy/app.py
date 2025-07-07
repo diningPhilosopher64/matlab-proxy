@@ -312,6 +312,10 @@ async def start_matlab(req):
         JSONResponse: JSONResponse object containing updated information on the state of MATLAB among other information.
     """
     state = req.app["state"]
+    cookie_jar = req.app["settings"]["cookie_jar"]
+
+    if cookie_jar:
+        cookie_jar.clear()
 
     # Start MATLAB
     await state.start_matlab(restart_matlab=True)
@@ -588,6 +592,8 @@ async def matlab_view(req):
     matlab_base_url = f"{matlab_protocol}://127.0.0.1:{matlab_port}"
     cookie_jar = req.app["settings"]["cookie_jar"]
 
+    cookies_from_jar = cookie_jar.get_dict() if cookie_jar else None
+
     # If we are trying to send request to matlab while the matlab_port is still not assigned
     # by embedded connector, return service not available and log a message
     if not matlab_port:
@@ -610,18 +616,17 @@ async def matlab_view(req):
         # Insert cookies before the response is prepared.
         # This will ensure that the cookies are sent to the client even for websocket handshake response
         if cookie_jar:
-            for cookie in cookie_jar:
+            for cookie in cookie_jar.get_cookies():
                 ws_server = _set_cookie_in_response(ws_server, cookie)
 
         await ws_server.prepare(req)
 
         async with aiohttp.ClientSession(
             cookies=(
-                None if cookie_jar else req.cookies
+                cookies_from_jar if cookie_jar else req.cookies
             ),  # If cookie jar is not provided, use the cookies from the incoming request
             trust_env=True,
             connector=aiohttp.TCPConnector(ssl=False),
-            cookie_jar=cookie_jar,  # Pass cookie jar for web socket requests to MATLAB
         ) as client_session:
             try:
                 async with client_session.ws_connect(
@@ -690,8 +695,6 @@ async def matlab_view(req):
             trust_env=True,
             connector=aiohttp.TCPConnector(ssl=False),
             timeout=timeout,
-            cookie_jar=cookie_jar,  # Pass cookie jar for HTTP requests to MATLAB.
-            # If cookie jar is not enabled, cookies are passed in request headers to the Embedded connector below.
         ) as client_session:
             try:
                 req_body = await transform_body(req)
@@ -709,23 +712,35 @@ async def matlab_view(req):
                     allow_redirects=False,
                     data=req_body,
                     params=None,
+                    cookies=cookies_from_jar,  # Pass cookie jar for HTTP requests to MATLAB.
+                    # If cookie jar is not enabled, cookies are passed in request headers to the Embedded connector below.
                 ) as res:
                     headers = res.headers.copy()
                     body = await res.read()
-                    headers.update(req.app["settings"]["mwi_custom_http_headers"])
 
                     response = web.Response(
                         status=res.status, headers=headers, body=body
                     )
 
-                    # Set cookies in the response to browser
                     if cookie_jar:
-                        for cookie in cookie_jar:
+                        # Update the cookies in the cookie jar with the Set-Cookie headers in the response.
+                        cookie_jar.update_from_response_headers(headers)
+
+                        # Now update the response with the cookies
+                        for cookie in cookie_jar.get_cookies():
                             logger.debug(
                                 f"Cookie {cookie.key}={cookie.value} will be set in the response"
                             )
                             response = _set_cookie_in_response(response, cookie)
 
+                    response.headers.update(
+                        req.app["settings"]["mwi_custom_http_headers"]
+                    )
+
+                    # If cookiejar is enabled, this response contains both cookies from cookie jar and the Set-Cookie headers from the Embedded Connector.
+                    # This may cause the browser to set the same cookie multiple times. We are being less invasive by not stripping out the Set-Cookie headers.
+                    # For environments which have strict reverse proxy rules (which remove Set-Cookie headers) between matlab-proxy
+                    # and the browser, the cookies from the response will be used by the browser.
                     return response
 
             # Handles any pending HTTP requests from the browser when the MATLAB process is terminated before responding to them.
