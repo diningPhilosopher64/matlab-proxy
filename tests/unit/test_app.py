@@ -1235,9 +1235,9 @@ async def test_cookie_jar_http_request(proxy_payload, test_server):
     await wait_for_matlab_to_be_up(test_server, test_constants.ONE_SECOND_DELAY)
 
     # Update cookie in cookie jar
-    test_server.app["settings"]["cookie_jar"].update_cookies(
-        {"cookie": actual_custom_cookie}
-    )
+    test_server.app["settings"]["cookie_jar"]._cookie_jar[
+        "cookie"
+    ] = actual_custom_cookie
 
     # Act
     async with await test_server.get(
@@ -1271,9 +1271,13 @@ async def test_cookie_jar_web_socket(proxy_payload, test_server):
     ).strftime("%a, %d-%b-%Y %H:%M:%S GMT")
 
     # Update cookie in cookie jar
-    test_server.app["settings"]["cookie_jar"].update_cookies(
-        {"cookie": actual_custom_cookie}
-    )
+    test_server.app["settings"]["cookie_jar"]._cookie_jar[
+        "cookie"
+    ] = actual_custom_cookie
+
+    # test_server.app["settings"]["cookie_jar"].update_cookies(
+    #     {"cookie": actual_custom_cookie}
+    # )
 
     await wait_for_matlab_to_be_up(test_server, test_constants.ONE_SECOND_DELAY)
 

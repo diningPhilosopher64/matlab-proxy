@@ -17,7 +17,7 @@ class SimpleCookieJar:
         self._cookie_jar: Dict[str, Morsel] = {}
         logger.info("Cookie Jar Initialized")
 
-    def get_cookie_name(self, cookie: SimpleCookie) -> str:
+    def _get_cookie_name(self, cookie: SimpleCookie) -> str:
         """
         Returns the name of the cookie.
         """
@@ -31,7 +31,7 @@ class SimpleCookieJar:
         for set_cookie_val in headers.getall("Set-Cookie", []):
             cookie = SimpleCookie()
             cookie.load(set_cookie_val)
-            cookie_name = self.get_cookie_name(cookie)
+            cookie_name = self._get_cookie_name(cookie)
             self._cookie_jar[cookie_name] = cookie[cookie_name]
             logger.debug(
                 f"Stored cookie object for key '{cookie_name}'. Value: '{cookie[cookie_name]}'"
