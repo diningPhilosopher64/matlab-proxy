@@ -10,8 +10,6 @@ import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from aiohttp import CookieJar
-
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa

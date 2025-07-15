@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi.exceptions import MatlabInstallError
-from aiohttp import CookieJar
+from matlab_proxy.util.cookie_jar import SimpleCookieJar
 
 """This file tests methods defined in settings.py file
 """
@@ -674,5 +674,5 @@ def test_get_cookie_jar(monkeypatch):
         settings.get_server_settings(matlab_proxy.get_default_config_name())[
             "cookie_jar"
         ],
-        CookieJar,
+        SimpleCookieJar,
     )
