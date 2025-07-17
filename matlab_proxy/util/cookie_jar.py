@@ -1,6 +1,6 @@
-import asyncio
+from http.cookies import Morsel, SimpleCookie
 from typing import Dict
-from http.cookies import SimpleCookie, Morsel
+
 from matlab_proxy.util import mwi
 
 logger = mwi.logger.get()
@@ -15,7 +15,7 @@ class SimpleCookieJar:
 
     def __init__(self):
         self._cookie_jar: Dict[str, Morsel] = {}
-        logger.info("Cookie Jar Initialized")
+        logger.debug("Cookie Jar Initialized")
 
     def _get_cookie_name(self, cookie: SimpleCookie) -> str:
         """

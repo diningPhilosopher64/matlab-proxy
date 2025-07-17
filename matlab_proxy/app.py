@@ -1,19 +1,19 @@
 # Copyright 2020-2025 The MathWorks, Inc.
 
 import asyncio
+import http
 import json
 import mimetypes
 import pkgutil
 import secrets
 import sys
+from typing import Union
 
 import aiohttp
-import http
 from aiohttp import client_exceptions, web
 from aiohttp_session import setup as aiohttp_session_setup
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 from cryptography import fernet
-from typing import Union
 
 import matlab_proxy
 from matlab_proxy import constants, settings, util
@@ -131,9 +131,9 @@ def create_status_response(app, loadUrl=None, client_id=None, is_active_client=N
 
 
 def _set_cookie_in_response(
-    resp: Union[web.WebSocketResponse, aiohttp.ClientResponse],
+    resp: Union[web.WebSocketResponse, web.Response],
     cookie: http.cookies.SimpleCookie,
-) -> Union[web.WebSocketResponse, aiohttp.ClientResponse]:
+) -> Union[web.WebSocketResponse, web.Response]:
     """Adds the provided cookie to the given response object.
 
     Args:
@@ -382,7 +382,7 @@ async def set_licensing_info(req):
             raise Exception(
                 'License type must be "NLM" or "MHLM" or "ExistingLicense"!'
             )
-    except Exception as e:
+    except Exception:
         raise web.HTTPBadRequest(text="Error with licensing!")
 
     # This is true for a user who has only one license associated with their account
@@ -529,8 +529,6 @@ def make_static_route_table(app):
     import importlib_resources
 
     from matlab_proxy import gui
-    from matlab_proxy.gui import static
-    from matlab_proxy.gui.static import css, js, media
 
     base_url = app["settings"]["base_url"]
 
@@ -621,13 +619,15 @@ async def matlab_view(req):
 
         await ws_server.prepare(req)
 
-        async with aiohttp.ClientSession(
-            cookies=(
-                cookies_from_jar if cookie_jar else req.cookies
-            ),  # If cookie jar is not provided, use the cookies from the incoming request
-            trust_env=True,
-            connector=aiohttp.TCPConnector(ssl=False),
-        ) as client_session:
+        async with (
+            aiohttp.ClientSession(
+                cookies=(
+                    cookies_from_jar if cookie_jar else req.cookies
+                ),  # If cookie jar is not provided, use the cookies from the incoming request
+                trust_env=True,
+                connector=aiohttp.TCPConnector(ssl=False),
+            ) as client_session
+        ):
             try:
                 async with client_session.ws_connect(
                     matlab_base_url + req.path_qs,
@@ -705,16 +705,18 @@ async def matlab_view(req):
                 reqH["Content-Length"] = str(len(req_body))
                 reqH["x-forwarded-proto"] = "http"
 
-                async with client_session.request(
-                    req.method,
-                    req_url,
-                    headers={**reqH, **{"mwapikey": mwapikey}},
-                    allow_redirects=False,
-                    data=req_body,
-                    params=None,
-                    cookies=cookies_from_jar,  # Pass cookie jar for HTTP requests to MATLAB.
-                    # If cookie jar is not enabled, cookies are passed in request headers to the Embedded connector below.
-                ) as res:
+                async with (
+                    client_session.request(
+                        req.method,
+                        req_url,
+                        headers={**reqH, **{"mwapikey": mwapikey}},
+                        allow_redirects=False,
+                        data=req_body,
+                        params=None,
+                        cookies=cookies_from_jar,  # Pass cookie jar for HTTP requests to MATLAB.
+                        # If cookie jar is not enabled, cookies are passed in request headers to the Embedded connector below.
+                    ) as res
+                ):
                     headers = res.headers.copy()
                     body = await res.read()
 
@@ -923,7 +925,7 @@ def configure_and_start(app):
 
     logger.debug("Starting MATLAB proxy app")
     logger.debug(
-        f' with base_url: {app["settings"]["base_url"]} and app_port:{app["settings"]["app_port"]}.'
+        f" with base_url: {app['settings']['base_url']} and app_port:{app['settings']['app_port']}."
     )
 
     app["state"].create_server_info_file()

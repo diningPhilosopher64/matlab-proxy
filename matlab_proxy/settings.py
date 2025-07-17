@@ -18,8 +18,8 @@ from cryptography.x509.oid import NameOID
 import matlab_proxy
 from matlab_proxy import constants
 from matlab_proxy.constants import MWI_AUTH_TOKEN_NAME_FOR_HTTP
-from matlab_proxy import util
 from matlab_proxy.util import mwi, system
+from matlab_proxy.util.cookie_jar import SimpleCookieJar
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi import token_auth
 from matlab_proxy.util.mwi.exceptions import (
@@ -27,8 +27,6 @@ from matlab_proxy.util.mwi.exceptions import (
     MatlabInstallError,
     UIVisibleFatalError,
 )
-
-from matlab_proxy.util.cookie_jar import SimpleCookieJar
 
 logger = mwi.logger.get()
 
@@ -162,7 +160,7 @@ def get_mwi_config_folder(dev=False):
             config_folder_path = config_folder_path / "hosts" / hostname
 
         logger.debug(
-            f"{'Hostname could not be determined. ' if not hostname else '' }Using the folder: {config_folder_path} for storing all matlab-proxy related session information"
+            f"{'Hostname could not be determined. ' if not hostname else ''}Using the folder: {config_folder_path} for storing all matlab-proxy related session information"
         )
 
         return config_folder_path
