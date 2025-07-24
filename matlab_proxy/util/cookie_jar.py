@@ -1,3 +1,5 @@
+# Copyright 2025 The MathWorks, Inc.
+
 from http.cookies import Morsel, SimpleCookie
 from typing import Dict
 

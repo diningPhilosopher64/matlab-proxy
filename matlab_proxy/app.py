@@ -1,13 +1,11 @@
 # Copyright 2020-2025 The MathWorks, Inc.
 
 import asyncio
-import http
 import json
 import mimetypes
 import pkgutil
 import secrets
 import sys
-from typing import Union
 
 import aiohttp
 from aiohttp import client_exceptions, web
@@ -128,33 +126,6 @@ def create_status_response(app, loadUrl=None, client_id=None, is_active_client=N
         status["isActiveClient"] = is_active_client
 
     return web.json_response(status)
-
-
-def _set_cookie_in_response(
-    resp: Union[web.WebSocketResponse, web.Response],
-    cookie: http.cookies.SimpleCookie,
-) -> Union[web.WebSocketResponse, web.Response]:
-    """Adds the provided cookie to the given response object.
-
-    Args:
-        resp (web.WebSocketResponse | aiohttp.ClientResponse):Either ClientResponse or WebSocketResponse object to which the cookie will be added.
-        cookie (http.cookies.SimpleCookie): The cookie to be added to the response.
-
-    Returns:
-        Union[web.WebSocketResponse | aiohttp.ClientResponse]: The response object with the cookie added.
-    """
-    resp.set_cookie(
-        name=cookie.key,
-        value=cookie.value,
-        max_age=cookie.get("max-age"),
-        expires=cookie.get("expires"),
-        domain=cookie.get("domain"),
-        path=cookie.get("path", "/"),
-        secure=cookie.get("secure", False),
-        httponly=cookie.get("httponly", False),
-    )
-
-    return resp
 
 
 @token_auth.authenticate_access_decorator
@@ -616,12 +587,6 @@ async def matlab_view(req):
         and req.method == "GET"
     ):
         ws_server = web.WebSocketResponse()
-
-        # # Insert cookies before the response is prepared.
-        # # This will ensure that the cookies are sent to the client even for websocket handshake response
-        # if cookie_jar:
-        #     for cookie in cookie_jar.get_cookies():
-        #         ws_server = _set_cookie_in_response(ws_server, cookie)
 
         await ws_server.prepare(req)
 
