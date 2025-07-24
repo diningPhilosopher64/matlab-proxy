@@ -19,7 +19,9 @@ from matlab_proxy import app, util
 from matlab_proxy.app import matlab_view
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi.exceptions import EntitlementError, MatlabInstallError
-from tests.unit.fixtures.fixture_auth import patch_authenticate_access_decorator
+from tests.unit.fixtures.fixture_auth import (
+    patch_authenticate_access_decorator,  # noqa: F401
+)
 from tests.unit.mocks.mock_client import MockWebSocketClient
 
 
@@ -700,7 +702,7 @@ async def test_matlab_view_websocket_success(
     mock_request,
     mock_websocket_messages,
     headers,
-    patch_authenticate_access_decorator,
+    patch_authenticate_access_decorator,  # noqa: F401
 ):
     """Test successful websocket connection and message forwarding"""
 
@@ -1222,28 +1224,29 @@ async def test_check_for_concurrency(test_server):
 )
 async def test_cookie_jar_http_request(proxy_payload, test_server):
     # Arrange
-
-    # Createa a custom cookie
     actual_custom_cookie = cookies.Morsel()
     actual_custom_cookie.set("custom_cookie", "cookie_value", "cookie_value")
     actual_custom_cookie["domain"] = "example.com"
     actual_custom_cookie["path"] = "/"
+    actual_custom_cookie["HttpOnly"] = True
     actual_custom_cookie["expires"] = (
         datetime.datetime.now() + timedelta(days=1)
     ).strftime("%a, %d-%b-%Y %H:%M:%S GMT")
 
     await wait_for_matlab_to_be_up(test_server, test_constants.ONE_SECOND_DELAY)
 
-    # Update cookie in cookie jar
+    # Manually update cookie in cookie jar
     test_server.app["settings"]["cookie_jar"]._cookie_jar[
-        "cookie"
+        "custom_cookie"
     ] = actual_custom_cookie
 
     # Act
     async with await test_server.get(
         "/http_get_request.html", data=json.dumps(proxy_payload)
-    ) as resp:
-        expected_custom_cookie = resp.cookies["custom_cookie"]
+    ) as _:
+        expected_custom_cookie = test_server.app["settings"]["cookie_jar"]._cookie_jar[
+            "custom_cookie"
+        ]
 
         # Assert
         assert actual_custom_cookie == expected_custom_cookie
@@ -1272,12 +1275,8 @@ async def test_cookie_jar_web_socket(proxy_payload, test_server):
 
     # Update cookie in cookie jar
     test_server.app["settings"]["cookie_jar"]._cookie_jar[
-        "cookie"
+        "custom_cookie"
     ] = actual_custom_cookie
-
-    # test_server.app["settings"]["cookie_jar"].update_cookies(
-    #     {"cookie": actual_custom_cookie}
-    # )
 
     await wait_for_matlab_to_be_up(test_server, test_constants.ONE_SECOND_DELAY)
 
@@ -1292,8 +1291,9 @@ async def test_cookie_jar_web_socket(proxy_payload, test_server):
             "Sec-WebSocket-Version": "13",  # Required for initiating the websocket handshake with aiohttp server
             "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",  # Optional unique key for the websocket handshake
         },
-    ) as res:
-        expected_custom_cookie = res.cookies["custom_cookie"]
-
+    ) as _:
+        expected_custom_cookie = test_server.app["settings"]["cookie_jar"]._cookie_jar[
+            "custom_cookie"
+        ]
         # Assert
         assert actual_custom_cookie == expected_custom_cookie

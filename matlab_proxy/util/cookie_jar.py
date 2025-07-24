@@ -6,11 +6,14 @@ from matlab_proxy.util import mwi
 logger = mwi.logger.get()
 
 
-class SimpleCookieJar:
+# For more information about HttpOnly attribute
+# of a cookie, check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#httponly
+class HttpOnlyCookieJar:
     """
-    A lightweight, in-memory cookie store.
+    A lightweight, HttpOnly, in-memory cookie store.
 
-    Its sole responsibility is to parse and store 'Set-Cookie' headers as Morsel objects.
+    Its sole responsibility is to parse and store 'Set-Cookie' headers as Morsel objects and
+    store them in the cookie-jar only if they are marked as HttpOnly.
     """
 
     def __init__(self):
@@ -26,16 +29,24 @@ class SimpleCookieJar:
     def update_from_response_headers(self, headers) -> None:
         """
         Parses 'Set-Cookie' headers from a response and stores the resulting
-        cookie objects (Morsels).
+        cookie objects (Morsels) only if they are HttpOnly cookies.
         """
         for set_cookie_val in headers.getall("Set-Cookie", []):
             cookie = SimpleCookie()
             cookie.load(set_cookie_val)
             cookie_name = self._get_cookie_name(cookie)
-            self._cookie_jar[cookie_name] = cookie[cookie_name]
-            logger.debug(
-                f"Stored cookie object for key '{cookie_name}'. Value: '{cookie[cookie_name]}'"
-            )
+            morsel = cookie[cookie_name]
+
+            if morsel["httponly"]:
+                self._cookie_jar[cookie_name] = morsel
+                logger.debug(
+                    f"Stored cookie object for key '{cookie_name}'. Value: '{cookie[cookie_name]}'"
+                )
+
+            else:
+                logger.warning(
+                    f"Cookie {cookie_name} is not a HttpOnly cookie. Skipping it."
+                )
 
     def get_cookies(self):
         """

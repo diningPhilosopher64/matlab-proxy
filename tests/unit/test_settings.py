@@ -1,17 +1,18 @@
 # Copyright 2020-2025 The MathWorks, Inc.
 
 import os
-import time
 import tempfile
+import time
+from pathlib import Path
+
+import pytest
 
 import matlab_proxy
 import matlab_proxy.settings as settings
-from matlab_proxy.constants import VERSION_INFO_FILE_NAME, DEFAULT_PROCESS_START_TIMEOUT
-from pathlib import Path
-import pytest
+from matlab_proxy.constants import DEFAULT_PROCESS_START_TIMEOUT, VERSION_INFO_FILE_NAME
+from matlab_proxy.util.cookie_jar import HttpOnlyCookieJar
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi.exceptions import MatlabInstallError
-from matlab_proxy.util.cookie_jar import SimpleCookieJar
 
 """This file tests methods defined in settings.py file
 """
@@ -122,7 +123,7 @@ def mock_shutil_which_fixture(mocker, fake_matlab_executable_path):
 @pytest.fixture(name="non_existent_path")
 def non_existent_path_fixture(tmp_path):
     # Build path to a non existent folder
-    random_folder = tmp_path / f'{str(time.time()).replace(".", "")}'
+    random_folder = tmp_path / f"{str(time.time()).replace('.', '')}"
     non_existent_path = Path(tmp_path) / random_folder
 
     return non_existent_path
@@ -674,5 +675,5 @@ def test_get_cookie_jar(monkeypatch):
         settings.get_server_settings(matlab_proxy.get_default_config_name())[
             "cookie_jar"
         ],
-        SimpleCookieJar,
+        HttpOnlyCookieJar,
     )

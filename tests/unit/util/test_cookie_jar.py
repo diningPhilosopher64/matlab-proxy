@@ -1,10 +1,10 @@
 # Copyright 2020-2025 The MathWorks, Inc.
 
-import pytest
-from http.cookies import SimpleCookie, Morsel
+from http.cookies import Morsel, SimpleCookie
+
 from multidict import CIMultiDict
 
-from matlab_proxy.util.cookie_jar import SimpleCookieJar
+from matlab_proxy.util.cookie_jar import HttpOnlyCookieJar
 
 
 def test_simple_cookie_jar_initialization():
@@ -13,7 +13,7 @@ def test_simple_cookie_jar_initialization():
     # Nothing to arrange
 
     # Act
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
 
     # Assert
     assert cookie_jar._cookie_jar == {}
@@ -22,7 +22,7 @@ def test_simple_cookie_jar_initialization():
 def test_get_cookie_name():
     """Test getting cookie name from SimpleCookie."""
     # Arrange
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
     cookie = SimpleCookie()
     cookie["test_cookie"] = "test_value"
 
@@ -36,7 +36,7 @@ def test_get_cookie_name():
 def test_get_cookie_name_with_multiple_cookies():
     """Test getting cookie name from SimpleCookie with multiple cookies."""
     # Arrange
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
     cookie_1, cookie_2 = SimpleCookie(), SimpleCookie()
     cookie_1["first_cookie"] = "first_value"
     cookie_2["second_cookie"] = "second_value"
@@ -53,7 +53,7 @@ def test_get_cookie_name_with_multiple_cookies():
 def test_update_from_response_headers_single_cookie():
     """Test updating cookie jar from response headers with single cookie."""
     # Arrange
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
     headers = CIMultiDict()
     headers.add("Set-Cookie", "JSESSIONID=abc123; Path=/; HttpOnly")
 
@@ -68,10 +68,10 @@ def test_update_from_response_headers_single_cookie():
 def test_update_from_response_headers_multiple_cookies():
     """Test updating cookie jar from response headers with multiple cookies."""
     # Arrange
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
     headers = CIMultiDict()
     headers.add("Set-Cookie", "JSESSIONID=abc123; Path=/; HttpOnly")
-    headers.add("Set-Cookie", "snc=1234; Path=/; Secure")
+    headers.add("Set-Cookie", "snc=1234; Path=/; Secure HttpOnly")
 
     # Act
     cookie_jar.update_from_response_headers(headers)
@@ -86,7 +86,7 @@ def test_update_from_response_headers_multiple_cookies():
 def test_update_from_response_headers_no_set_cookie():
     """Test updating cookie jar when no Set-Cookie headers present."""
     # Arrange
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
     headers = CIMultiDict()
     headers.add("Content-Type", "application/json")
 
@@ -100,11 +100,11 @@ def test_update_from_response_headers_no_set_cookie():
 def test_update_from_response_headers_overwrite_existing():
     """Test that updating cookie jar overwrites existing cookies with same name."""
     # Arrange
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
     headers1 = CIMultiDict()
-    headers1.add("Set-Cookie", "JSESSIONID=old_value; Path=/")
+    headers1.add("Set-Cookie", "JSESSIONID=old_value; Path=/ HttpOnly")
     headers2 = CIMultiDict()
-    headers2.add("Set-Cookie", "JSESSIONID=new_value; Path=/")
+    headers2.add("Set-Cookie", "JSESSIONID=new_value; Path=/ HttpOnly")
 
     # Act
     cookie_jar.update_from_response_headers(headers1)
@@ -117,10 +117,10 @@ def test_update_from_response_headers_overwrite_existing():
 def test_get_cookies():
     """Test getting all cookies as list of Morsel objects."""
     # Arrange
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
     headers = CIMultiDict()
-    headers.add("Set-Cookie", "JSESSIONID=abc123; Path=/")
-    headers.add("Set-Cookie", "snc=1234; Path=/")
+    headers.add("Set-Cookie", "JSESSIONID=abc123; Path=/ HttpOnly")
+    headers.add("Set-Cookie", "snc=1234; Path=/ HttpOnly")
     cookie_jar.update_from_response_headers(headers)
 
     # Act
@@ -137,7 +137,7 @@ def test_get_cookies():
 def test_get_cookies_empty_jar():
     """Test getting cookies from empty jar."""
     # Arrange
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
 
     # Act
     cookies = cookie_jar.get_cookies()
@@ -149,10 +149,10 @@ def test_get_cookies_empty_jar():
 def test_get_dict():
     """Test getting cookies as dictionary."""
     # Arrange
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
     headers = CIMultiDict()
-    headers.add("Set-Cookie", "JSESSIONID=abc123; Path=/")
-    headers.add("Set-Cookie", "snc=1234; Path=/")
+    headers.add("Set-Cookie", "JSESSIONID=abc123; Path=/ HttpOnly")
+    headers.add("Set-Cookie", "snc=1234; Path=/ HttpOnly")
     cookie_jar.update_from_response_headers(headers)
 
     # Act
@@ -167,7 +167,7 @@ def test_get_dict():
 def test_get_dict_empty_jar():
     """Test getting dictionary from empty jar."""
     # Arrange
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
 
     # Act
     cookie_dict = cookie_jar.get_dict()
@@ -179,10 +179,10 @@ def test_get_dict_empty_jar():
 def test_clear():
     """Test clearing all cookies from jar."""
     # Arrange
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
     headers = CIMultiDict()
-    headers.add("Set-Cookie", "JSESSIONID=abc123; Path=/")
-    headers.add("Set-Cookie", "snc=1234; Path=/")
+    headers.add("Set-Cookie", "JSESSIONID=abc123; Path=/ HttpOnly")
+    headers.add("Set-Cookie", "snc=1234; Path=/ HttpOnly")
     cookie_jar.update_from_response_headers(headers)
 
     # Act
@@ -197,7 +197,7 @@ def test_clear():
 def test_clear_empty_jar():
     """Test clearing already empty jar."""
     # Arrange
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
 
     # Act
     cookie_jar.clear()
@@ -209,7 +209,7 @@ def test_clear_empty_jar():
 def test_cookie_attributes_preserved():
     """Test that cookie attributes are preserved when stored."""
     # Arrange
-    cookie_jar = SimpleCookieJar()
+    cookie_jar = HttpOnlyCookieJar()
     headers = CIMultiDict()
     headers.add(
         "Set-Cookie", "JSESSIONID=abc123; Path=/; HttpOnly; Secure; Max-Age=3600"
@@ -219,6 +219,31 @@ def test_cookie_attributes_preserved():
     cookie_jar.update_from_response_headers(headers)
 
     # Assert
+    morsel = cookie_jar._cookie_jar["JSESSIONID"]
+    assert morsel.value == "abc123"
+    assert morsel["path"] == "/"
+    assert morsel["httponly"] is True
+    assert morsel["secure"] is True
+    assert morsel["max-age"] == "3600"
+
+
+def test_cookie_jar_insert_httponly_cookies():
+    """Test that only HttpOnly cookies are added to the cookie jar."""
+    # Arrange
+    cookie_jar = HttpOnlyCookieJar()
+    headers = CIMultiDict()
+    # JSessionID cookie with HttpOnly flag. This cookie should be added to the cookie jar.
+    headers.add(
+        "Set-Cookie", "JSESSIONID=abc123; Path=/; HttpOnly; Secure; Max-Age=3600"
+    )
+    # SNC cookie without HttpOnly. This cookie should not be added to the cookie jar
+    headers.add("Set-Cookie", "SNC=abc123; Path=/; Secure; Max-Age=3600")
+
+    # Act
+    cookie_jar.update_from_response_headers(headers)
+
+    # Assert
+    assert len(cookie_jar._cookie_jar) == 1
     morsel = cookie_jar._cookie_jar["JSESSIONID"]
     assert morsel.value == "abc123"
     assert morsel["path"] == "/"

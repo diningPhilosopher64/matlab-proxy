@@ -19,7 +19,7 @@ import matlab_proxy
 from matlab_proxy import constants
 from matlab_proxy.constants import MWI_AUTH_TOKEN_NAME_FOR_HTTP
 from matlab_proxy.util import mwi, system
-from matlab_proxy.util.cookie_jar import SimpleCookieJar
+from matlab_proxy.util.cookie_jar import HttpOnlyCookieJar
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi import token_auth
 from matlab_proxy.util.mwi.exceptions import (
@@ -708,11 +708,16 @@ def _get_matlab_cmd(matlab_executable_path, code_to_execute, nlm_conn_str):
 
 
 def _get_cookie_jar():
+    """Returns an instance of HttpOnly cookie jar if MWI_USE_COOKIE_CACHE environment variable is set to True
+
+    Returns:
+        HttpOnlyCookieJar: An instance of HttpOnly cookie jar if MWI_USE_COOKIE_CACHE environment variable is set to True, otherwise None.
+    """
     cookie_jar = None
     if mwi_env.Experimental.should_use_cookie_cache():
         logger.info(
             f"Environment variable {mwi_env.Experimental.get_env_name_use_cookie_cache()} is set. matlab-proxy server will cache cookies from MATLAB"
         )
-        cookie_jar = SimpleCookieJar()
+        cookie_jar = HttpOnlyCookieJar()
 
     return cookie_jar

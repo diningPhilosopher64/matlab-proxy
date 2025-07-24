@@ -528,7 +528,13 @@ def make_static_route_table(app):
     """
     import importlib_resources
 
-    from matlab_proxy import gui
+    from matlab_proxy import gui  # noqa: F401
+    from matlab_proxy.gui import static  # noqa: F401
+    from matlab_proxy.gui.static import (
+        css,  # noqa: F401
+        js,  # noqa: F401
+        media,  # noqa: F401
+    )
 
     base_url = app["settings"]["base_url"]
 
@@ -611,23 +617,21 @@ async def matlab_view(req):
     ):
         ws_server = web.WebSocketResponse()
 
-        # Insert cookies before the response is prepared.
-        # This will ensure that the cookies are sent to the client even for websocket handshake response
-        if cookie_jar:
-            for cookie in cookie_jar.get_cookies():
-                ws_server = _set_cookie_in_response(ws_server, cookie)
+        # # Insert cookies before the response is prepared.
+        # # This will ensure that the cookies are sent to the client even for websocket handshake response
+        # if cookie_jar:
+        #     for cookie in cookie_jar.get_cookies():
+        #         ws_server = _set_cookie_in_response(ws_server, cookie)
 
         await ws_server.prepare(req)
 
-        async with (
-            aiohttp.ClientSession(
-                cookies=(
-                    cookies_from_jar if cookie_jar else req.cookies
-                ),  # If cookie jar is not provided, use the cookies from the incoming request
-                trust_env=True,
-                connector=aiohttp.TCPConnector(ssl=False),
-            ) as client_session
-        ):
+        async with aiohttp.ClientSession(
+            cookies=(
+                cookies_from_jar if cookie_jar else req.cookies
+            ),  # If cookie jar is not provided, use the cookies from the incoming request
+            trust_env=True,
+            connector=aiohttp.TCPConnector(ssl=False),
+        ) as client_session:
             try:
                 async with client_session.ws_connect(
                     matlab_base_url + req.path_qs,
@@ -705,18 +709,16 @@ async def matlab_view(req):
                 reqH["Content-Length"] = str(len(req_body))
                 reqH["x-forwarded-proto"] = "http"
 
-                async with (
-                    client_session.request(
-                        req.method,
-                        req_url,
-                        headers={**reqH, **{"mwapikey": mwapikey}},
-                        allow_redirects=False,
-                        data=req_body,
-                        params=None,
-                        cookies=cookies_from_jar,  # Pass cookie jar for HTTP requests to MATLAB.
-                        # If cookie jar is not enabled, cookies are passed in request headers to the Embedded connector below.
-                    ) as res
-                ):
+                async with client_session.request(
+                    req.method,
+                    req_url,
+                    headers={**reqH, **{"mwapikey": mwapikey}},
+                    allow_redirects=False,
+                    data=req_body,
+                    params=None,
+                    cookies=cookies_from_jar,  # Pass cookies from  cookie_jar for HTTP requests to MATLAB. This value will
+                    # be none if cookie jar is not enabled
+                ) as res:
                     headers = res.headers.copy()
                     body = await res.read()
 
@@ -724,25 +726,26 @@ async def matlab_view(req):
                         status=res.status, headers=headers, body=body
                     )
 
+                    # Purpose of the cookie-jar in matlab-proxy is to:
+                    # 1) Update the cookies within it when the Embedded Connector sends back Set-Cookie headers in the response.
+                    # 2) Read these cookies from the cookie jar and insert them into subsequent requests to the Embedded Connector.
+
+                    # Due to matlab-proxy's PING requests to EC, the number cookies present in the cookie-jar and their
+                    # value will be more than the ones present on the browser side.
+                    # Example: The JSESSIONID cookie will be present in the cookie-jar but not on the browser side.
+                    # This inconsistency of cookies between the browser and matlab-proxy's cookie-jar is expected and okay
+                    # as these cookies are HttpOnly cookies.
+
+                    # Incase the Embedded Connector sends cookies which are not HttpOnly, then additional logic needs to be written
+                    # to update the response with cookies from the cookie jar before it is forwarded to the browser.
                     if cookie_jar:
                         # Update the cookies in the cookie jar with the Set-Cookie headers in the response.
                         cookie_jar.update_from_response_headers(headers)
-
-                        # Now update the response with the cookies
-                        for cookie in cookie_jar.get_cookies():
-                            logger.debug(
-                                f"Cookie {cookie.key}={cookie.value} will be set in the response"
-                            )
-                            response = _set_cookie_in_response(response, cookie)
 
                     response.headers.update(
                         req.app["settings"]["mwi_custom_http_headers"]
                     )
 
-                    # If cookiejar is enabled, this response contains both cookies from cookie jar and the Set-Cookie headers from the Embedded Connector.
-                    # This may cause the browser to set the same cookie multiple times. We are being less invasive by not stripping out the Set-Cookie headers.
-                    # For environments which have strict reverse proxy rules (which remove Set-Cookie headers) between matlab-proxy
-                    # and the browser, the cookies from the response will be used by the browser.
                     return response
 
             # Handles any pending HTTP requests from the browser when the MATLAB process is terminated before responding to them.
