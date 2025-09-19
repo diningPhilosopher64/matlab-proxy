@@ -44,6 +44,11 @@ function Information ({
                 label: `Online License Manager (${licensingInfo.emailAddress})`
             };
             break;
+        case 'oauth':
+            info = {
+                label: `Online License Manager (${licensingInfo.emailAddress})`
+            };
+            break;
         case 'nlm':
             info = {
                 label: `Network License Manager (${licensingInfo.connectionString})`

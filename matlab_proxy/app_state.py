@@ -33,8 +33,8 @@ from matlab_proxy.util.mwi.exceptions import (
     MatlabInstallError,
     OnlineLicensingError,
     UIVisibleFatalError,
-    XvfbError,
     WindowManagerError,
+    XvfbError,
     log_error,
 )
 
@@ -219,7 +219,7 @@ class AppState:
     def __delete_cached_config_file(self):
         """Deletes the cached config file"""
         try:
-            logger.debug(f"Deleting any cached config files!")
+            logger.debug("Deleting any cached config files!")
             os.remove(self.__get_cached_config_file())
         except FileNotFoundError:
             # The file being absent is acceptable.
@@ -227,7 +227,7 @@ class AppState:
 
     def __reset_and_delete_cached_config(self):
         """Reset licensing variable of the class and removes the cached config file."""
-        logger.debug(f"Resetting cached config information...")
+        logger.debug("Resetting cached config information...")
         self.licensing = None
         self.__delete_cached_config_file()
 
@@ -263,7 +263,7 @@ class AppState:
                 f"{mwi_env.get_env_name_mwi_use_existing_license()} variable set in environment"
             )
             logger.info(
-                f"!!! Starting MATLAB without providing any additional licensing information. This requires MATLAB to have been activated on the machine from which its being started !!!"
+                "!!! Starting MATLAB without providing any additional licensing information. This requires MATLAB to have been activated on the machine from which its being started !!!"
             )
 
             # Delete old config info from cache to ensure its wiped out first before persisting new info.
@@ -342,7 +342,7 @@ class AppState:
                     else:
                         # Somethings wrong, licensing is neither NLM or MHLM
                         self.__reset_and_delete_cached_config()
-                except Exception as e:
+                except Exception:
                     self.__reset_and_delete_cached_config()
 
     async def __update_matlab_state_based_on_connector_state(self):
@@ -660,6 +660,38 @@ class AppState:
         self.licensing = {"type": "existing_license"}
         self.persist_config_data()
 
+    async def set_licensing_oauth(self, url, payload):
+        token_response = await mw.exchange_auth_code(url, payload)  
+
+        self.licensing = {
+            "type": "oauth",
+            "expiry": token_response["expirationDate"],
+            "email_addr": token_response["referenceDetail"]["email"],
+            "first_name": token_response["referenceDetail"]["firstName"],
+            "last_name": token_response["referenceDetail"]["lastName"],
+            "display_name": token_response["referenceDetail"]["displayName"],
+            "user_id": token_response["referenceDetail"]["userId"],
+            "source_id": payload["client_id"]
+        }
+
+        entitlements = await mw.fetch_entitlements(
+            "https://licensing-integ1.mathworks.com/mls/service/v1/entitlement/list",
+            token_response["accessTokenString"],
+            "R2024b",
+        )
+
+        self.licensing["entitlements"] = entitlements
+
+        # Auto-select the entitlement if only one entitlement is returned from MHLM
+        if len(entitlements) == 1:
+            self.licensing["entitlement_id"] = entitlements[0]["id"]
+
+        
+        print("\n\n Licensing info ", self.licensing)
+
+        self.persist_config_data()
+
+
     async def set_licensing_mhlm(
         self,
         identity_token,
@@ -728,6 +760,7 @@ class AppState:
         Returns:
             Boolean: True if MATLAB is Licensed. False otherwise.
         """
+        print("\n\n Licensing now is ", self.licensing)
         if self.licensing is not None:
             logger.debug(f"Licensing type: {self.licensing.get('type')}")
             if self.licensing.get("type") == "nlm":
@@ -743,7 +776,31 @@ class AppState:
                     return True
             elif self.licensing.get("type") == "existing_license":
                 return True
+            elif self.licensing.get("type") == "oauth":
+                if (
+                    self.licensing.get("source_id") is not None
+                    and self.licensing.get("expiry") is not None
+                    and self.licensing.get("entitlement_id") is not None
+                ):
+                    return True
         return False
+
+    async def update_entitlements_with_oauth_access_token(self, access_token): 
+        entitlements = await mw.fetch_entitlements(
+                self.settings["mhlm_api_endpoint"],
+                access_token,
+                self.settings["matlab_version"],
+            )
+        
+        print("\n\n Fetched entitlements ", entitlements)
+        self.licensing["entitlements"] = entitlements
+        # Auto-select the entitlement if only one entitlement is returned from MHLM
+        if len(entitlements) == 1:
+            self.licensing["entitlement_id"] = entitlements[0]["id"]
+
+        # Persist the updated licensing configuration
+        self.persist_config_data()
+        
 
     async def update_entitlements(self):
         """Speaks to MW and updates MHLM entitlements
@@ -826,7 +883,7 @@ class AppState:
         if self.licensing is None:
             self.__delete_cached_config_file()
 
-        elif self.licensing["type"] in ["mhlm", "nlm", "existing_license"]:
+        elif self.licensing["type"] in ["mhlm", "nlm", "existing_license", "oauth"]:
             logger.debug("Saving licensing information...")
             cached_config_file = self.__get_cached_config_file()
             cached_config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -878,7 +935,7 @@ class AppState:
                     util.prettify(
                         boundary_filler="*",
                         text_arr=[
-                            f"When MATLAB starts, you can see the output for your startup code at:",
+                            "When MATLAB starts, you can see the output for your startup code at:",
                             f"{self.matlab_session_files.get('startup_code_output_file', ' ')}",
                         ],
                     )
@@ -913,7 +970,7 @@ class AppState:
             util.prettify(
                 boundary_filler="=",
                 text_arr=[
-                    f"Access MATLAB at:",
+                    "Access MATLAB at:",
                     self.settings["mwi_server_url"].replace("0.0.0.0", "localhost")
                     + mwi_auth_token_str,
                 ],
@@ -1110,7 +1167,7 @@ class AppState:
 
         # FileNotFoundError: is thrown if Xvfb is not found on System Path.
         # XvfbError: is thrown if something went wrong when starting Xvfb process.
-        except (FileNotFoundError, XvfbError) as err:
+        except (FileNotFoundError, XvfbError):
             self.error = XvfbError(
                 """Unable to start the Xvfb process. Ensure Xvfb is installed and is available on the System Path. See https://github.com/mathworks/matlab-proxy#requirements for information on Xvfb"""
             )

@@ -47,7 +47,9 @@ import {
     fetchServerStatus,
     fetchEnvConfig,
     updateAuthStatus,
-    fetchShutdownIntegration
+    fetchShutdownIntegration,
+    fetchHandleOAuthCallback
+    
 } from '../../actionCreators';
 import blurredBackground from './MATLAB-env-blur.png';
 import EntitlementSelector from '../EntitlementSelector';
@@ -311,6 +313,25 @@ function App() {
         }
     }, [dispatch, baseUrl, hasFetchedEnvConfig]);
 
+    useEffect(() => {
+        // Check if this is an OAuth callback
+        if (hasFetchedEnvConfig) {
+            const url = new URL(window.location.href);
+            const queryParams = parseQueryParams(url);
+            const code = queryParams.get('code');
+            const state = queryParams.get('state');
+            
+            // If code and state are present, this is an OAuth callback
+            if (code && state) {
+                // Handle the OAuth callback
+                dispatch(fetchHandleOAuthCallback(code, state));
+                
+                // Clean up the URL
+                window.history.replaceState(null, '', `${baseUrl}index.html`);
+            }
+        }
+    }, [dispatch, baseUrl, hasFetchedEnvConfig]);
+
     // Display one of:
     // * Confirmation
     // * Help
@@ -373,7 +394,8 @@ function App() {
 
     // MW Internal Comment: See g2992889 for a discussion on why a FQDN is required in the MRE parameter.
     const matlabUrl = process.env.NODE_ENV === 'development'
-        ? 'http://localhost:31515/index-jsd-cr.html'
+        // ? 'http://localhost:31515/index-jsd-cr.html'
+        ? `./${htmlToRenderMATLAB()}`
         : `./${htmlToRenderMATLAB()}`;
 
     // handler for user events (mouse clicks, key presses etc.)

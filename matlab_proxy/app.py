@@ -1,11 +1,14 @@
 # Copyright 2020-2025 The MathWorks, Inc.
 
 import asyncio
+import base64
+import hashlib
 import json
 import mimetypes
 import pkgutil
 import secrets
 import sys
+import urllib.parse
 
 import aiohttp
 from aiohttp import client_exceptions, web
@@ -60,6 +63,13 @@ def marshal_licensing_info(licensing_info):
     if licensing_type == "mhlm":
         return {
             "type": "mhlm",
+            "emailAddress": licensing_info["email_addr"],
+            "entitlements": licensing_info.get("entitlements", []),
+            "entitlementId": licensing_info.get("entitlement_id", None),
+        }
+    elif licensing_type == "oauth":
+        return {
+            "type": "oauth",
             "emailAddress": licensing_info["email_addr"],
             "entitlements": licensing_info.get("entitlements", []),
             "entitlementId": licensing_info.get("entitlement_id", None),
@@ -232,6 +242,7 @@ async def get_status(req):
     """
     # The client sends the CLIENT_ID as a query parameter if the concurrency check has been set to true.
     state = req.app["state"]
+    print("state in get status ", state.licensing)
     client_id = req.query.get("MWI_CLIENT_ID", None)
     transfer_session = json.loads(req.query.get("TRANSFER_SESSION", "false"))
     is_desktop = req.query.get("IS_DESKTOP", False)
@@ -390,6 +401,7 @@ async def update_entitlement(req):
 
 async def __start_matlab_if_licensed(state):
     # Start MATLAB if licensing is complete
+    print("error \n", state.error)
     if state.is_licensed() and not isinstance(state.error, LicensingError):
         await state.start_matlab(restart_matlab=True)
 
@@ -422,6 +434,110 @@ async def licensing_info_delete(req):
     state.persist_config_data()
 
     return create_status_response(req.app)
+
+session_store = {}
+CLIENT_ID = "python-test-client"
+# OAUTH_HOST = "https://signin-dev1.mathworks.com"
+OAUTH_HOST = "https://signin-integ1.mathworks.com"
+CLIENT_SECRET = "matlab-proxy-secret"
+REDIRECT_URI = 'http://localhost:5173/accept_auth_code'
+
+@token_auth.authenticate_access_decorator
+async def login(req): 
+    session_id = secrets.token_hex(4)
+    
+    # Generate code verifier (random string)
+    code_verifier = secrets.token_urlsafe(32)
+    
+    # Generate code challenge (SHA256 hash of verifier, base64url encoded)
+    code_challenge_bytes = hashlib.sha256(code_verifier.encode()).digest()
+    code_challenge = base64.urlsafe_b64encode(code_challenge_bytes).decode().rstrip('=')
+    
+    # Store session data
+    session_store[session_id] = {
+        'initial_url': '/clientapp/dogs',
+        'auth_state': False,
+        'code_verifier': code_verifier
+    }
+
+    
+    params = {
+        'response_type': 'code',
+        'client_id': CLIENT_ID,
+        'redirect_uri': REDIRECT_URI,
+        'state': session_id,
+        'code_challenge': code_challenge,
+        'code_challenge_method': 'S256',
+        'txn_id': session_id,
+        'release': 'R2023a',
+        'platform': 'Mac OS X',
+        'profile_tier': 'extended',
+        'locale': 'en_US'
+    }
+    
+    query_string = urllib.parse.urlencode(params)
+    auth_url = f"{OAUTH_HOST}/oauth2/v1/oauth/authorize?{query_string}"
+
+    
+    # Set cookie and redirect
+    # response = web.HTTPFound(auth_url)
+    response = web.json_response({
+        'auth_url': auth_url,
+        'session_id': session_id
+    })
+    response.set_cookie('sessionId', session_id, httponly=True, path='/')
+    # response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
+    # response.headers['Access-Control-Allow-Credentials'] = 'true'
+
+    print("\n\n Data data ", {
+        'auth_url': auth_url,
+        'session_id': session_id
+    })
+    
+    return response
+
+@token_auth.authenticate_access_decorator
+async def accept_auth_code(request):
+    state = request.query.get('state')
+    code = request.query.get('code')
+    app_state = request.app["state"]
+
+    if state not in session_store:
+        return web.Response(text="Invalid session state", status=400)
+    
+    session_data = session_store[state]
+
+    session_store[state]["auth_state"] = True
+    
+    # Prepare token request
+    token_endpoint = f"{OAUTH_HOST}/oauth2/v1/oauth/token"
+    
+    payload = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "redirect_uri": REDIRECT_URI,
+        "code_verifier": session_data["code_verifier"]
+    }
+
+    await app_state.set_licensing_oauth(token_endpoint, payload)
+
+    await __start_matlab_if_licensed(app_state)
+
+    base_url = request.app["settings"]["base_url"]
+    query_params = f"?{request.query_string}" if request.query_string else ""
+    # response_url = f"{base_url}/index.html{query_params}"
+    response_url = f"{base_url}/index.html"
+
+    return aiohttp.web.HTTPFound(response_url)
+
+   
+
+
+    print("\n\n Received token response ")
+    from pprint import pprint
+    pprint(token_response)
 
 
 @token_auth.authenticate_access_decorator
@@ -956,6 +1072,8 @@ def create_app(config_name=matlab_proxy.get_default_config_name()):
 
     base_url = app["settings"]["base_url"]
     app.router.add_route("GET", f"{base_url}/get_status", get_status)
+    app.router.add_route("GET", f"{base_url}/login", login)
+    app.router.add_route("GET", f"{base_url}/accept_auth_code", accept_auth_code)
     app.router.add_route("POST", f"{base_url}/authenticate", authenticate)
     app.router.add_route("GET", f"{base_url}/get_auth_token", get_auth_token)
     app.router.add_route("GET", f"{base_url}/get_env_config", get_env_config)

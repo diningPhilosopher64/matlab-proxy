@@ -318,6 +318,23 @@ export function getAuthToken () {
     };
 }
 
+export function fetchLoginWithOAuth() {
+    return async function (dispatch) {
+        const options = {
+            method: 'GET'
+        };
+        const response = await fetchWithTimeout(dispatch, './login', options, 10000);
+        const data = await response.json();
+
+        console.log("\n\n Received data is ", data)
+        window.location.href = data.auth_url;
+
+
+        // window.location.href = data.auth_url;
+        
+    };
+}
+
 export function fetchSetLicensing (info) {
     return async function (dispatch) {
         const options = {
@@ -337,6 +354,38 @@ export function fetchSetLicensing (info) {
         dispatch(receiveSetLicensing(data));
     };
 }
+
+export function fetchHandleOAuthCallback (authCode, state) {
+    return async function (dispatch) {
+        try {
+            const response = await fetch(
+                `./accept_auth_code?code=${encodeURIComponent(authCode)}&state=${encodeURIComponent(state)}`,
+                {
+                    method: 'GET',
+                    credentials: 'include',
+                }
+            );
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+
+            console.log("Received data after sending authCode ", data);
+            // After successful authentication, fetch server status
+            dispatch(receiveSetLicensing(data));       
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            dispatch({
+                type: LOGIN_FAILURE,
+                payload: { error: error.message }
+            });
+        }
+    };
+}
+
+
 
 export function fetchUpdateLicensing (info) {
     return async function (dispatch) {
