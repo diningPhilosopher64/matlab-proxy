@@ -242,7 +242,6 @@ async def get_status(req):
     """
     # The client sends the CLIENT_ID as a query parameter if the concurrency check has been set to true.
     state = req.app["state"]
-    print("state in get status ", state.licensing)
     client_id = req.query.get("MWI_CLIENT_ID", None)
     transfer_session = json.loads(req.query.get("TRANSFER_SESSION", "false"))
     is_desktop = req.query.get("IS_DESKTOP", False)
@@ -440,10 +439,20 @@ CLIENT_ID = "python-test-client"
 # OAUTH_HOST = "https://signin-dev1.mathworks.com"
 OAUTH_HOST = "https://signin-integ1.mathworks.com"
 CLIENT_SECRET = "matlab-proxy-secret"
-REDIRECT_URI = 'http://localhost:5173/accept_auth_code'
+origin = None
 
 @token_auth.authenticate_access_decorator
 async def login(req): 
+
+    data = await req.json()
+    global origin
+    origin = data.get('origin', None)
+
+    if not origin:
+        return web.Response(text="Origin not provided", status=400)
+    
+    print("Received origin is ", origin)
+    origin = origin + "/accept_auth_code"
     session_id = secrets.token_hex(4)
     
     # Generate code verifier (random string)
@@ -464,7 +473,7 @@ async def login(req):
     params = {
         'response_type': 'code',
         'client_id': CLIENT_ID,
-        'redirect_uri': REDIRECT_URI,
+        'redirect_uri': origin,
         'state': session_id,
         'code_challenge': code_challenge,
         'code_challenge_method': 'S256',
@@ -486,14 +495,8 @@ async def login(req):
         'session_id': session_id
     })
     response.set_cookie('sessionId', session_id, httponly=True, path='/')
-    # response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
-    # response.headers['Access-Control-Allow-Credentials'] = 'true'
 
-    print("\n\n Data data ", {
-        'auth_url': auth_url,
-        'session_id': session_id
-    })
-    
+ 
     return response
 
 @token_auth.authenticate_access_decorator
@@ -501,7 +504,8 @@ async def accept_auth_code(request):
     state = request.query.get('state')
     code = request.query.get('code')
     app_state = request.app["state"]
-
+    global origin 
+    
     if state not in session_store:
         return web.Response(text="Invalid session state", status=400)
     
@@ -517,7 +521,7 @@ async def accept_auth_code(request):
         "code": code,
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
-        "redirect_uri": REDIRECT_URI,
+        "redirect_uri": origin,
         "code_verifier": session_data["code_verifier"]
     }
 
@@ -1072,7 +1076,7 @@ def create_app(config_name=matlab_proxy.get_default_config_name()):
 
     base_url = app["settings"]["base_url"]
     app.router.add_route("GET", f"{base_url}/get_status", get_status)
-    app.router.add_route("GET", f"{base_url}/login", login)
+    app.router.add_route("POST", f"{base_url}/login", login)
     app.router.add_route("GET", f"{base_url}/accept_auth_code", accept_auth_code)
     app.router.add_route("POST", f"{base_url}/authenticate", authenticate)
     app.router.add_route("GET", f"{base_url}/get_auth_token", get_auth_token)

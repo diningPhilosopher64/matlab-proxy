@@ -321,12 +321,12 @@ export function getAuthToken () {
 export function fetchLoginWithOAuth() {
     return async function (dispatch) {
         const options = {
-            method: 'GET'
+            method: 'POST',
+            body: JSON.stringify({ origin: window.location.origin }),
         };
         const response = await fetchWithTimeout(dispatch, './login', options, 10000);
         const data = await response.json();
 
-        console.log("\n\n Received data is ", data)
         window.location.href = data.auth_url;
 
 

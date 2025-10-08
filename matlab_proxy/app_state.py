@@ -687,8 +687,6 @@ class AppState:
             self.licensing["entitlement_id"] = entitlements[0]["id"]
 
         
-        print("\n\n Licensing info ", self.licensing)
-
         self.persist_config_data()
 
 
