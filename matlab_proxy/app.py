@@ -1,11 +1,14 @@
 # Copyright 2020-2025 The MathWorks, Inc.
 
 import asyncio
+import base64
+import hashlib
 import json
 import mimetypes
 import pkgutil
 import secrets
 import sys
+import urllib.parse
 
 import aiohttp
 from aiohttp import client_exceptions, web
@@ -71,6 +74,13 @@ def marshal_licensing_info(licensing_info):
         }
     elif licensing_type == "existing_license":
         return {"type": "existing_license"}
+    elif licensing_type == "oauth":
+        return {
+            "type": "oauth",
+            "emailAddress": licensing_info["email_addr"],
+            "entitlements": licensing_info.get("entitlements", []),
+            "entitlementId": licensing_info.get("entitlement_id", None),
+        }
 
 
 def marshal_error(error):
@@ -362,6 +372,89 @@ async def set_licensing_info(req):
     await __start_matlab_if_licensed(state)
 
     return create_status_response(req.app)
+
+
+@token_auth.authenticate_access_decorator
+async def login(req):
+    state = req.app["state"]
+
+    data = await req.json()
+    origin = data.get("origin", None)
+    if not origin:
+        return web.Response(text="Origin not provided", status=400)
+
+    origin = origin + "/accept_auth_code"
+    state.settings["browser_origin"] = origin
+
+    session_id = secrets.token_hex(4)
+
+    # Generate code verifier (random string)
+    code_verifier = secrets.token_urlsafe(32)
+
+    # Generate code challenge (SHA256 hash of verifier, base64url encoded)
+    code_challenge_bytes = hashlib.sha256(code_verifier.encode()).digest()
+    code_challenge = base64.urlsafe_b64encode(code_challenge_bytes).decode().rstrip("=")
+
+    state.settings["code_verifier"] = code_verifier
+    state.settings["code_challenge"] = code_challenge
+    state.settings["oauth_session_id"] = session_id
+
+    params = {
+        "response_type": "code",
+        "client_id": state.settings["oauth_client_id"],
+        "redirect_uri": origin,
+        "state": session_id,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+        "txn_id": session_id,
+        "release": state.settings["matlab_version"],
+        "platform": util.system.get_os,
+        "profile_tier": "extended",
+        "locale": "en_US",
+    }
+
+    query_string = urllib.parse.urlencode(params)
+    auth_url = f"{state.settings['integ_oauth_endpoint']}/oauth2/v1/oauth/authorize?{query_string}"
+
+    response = web.json_response({"auth_url": auth_url, "session_id": session_id})
+
+    return response
+
+
+@token_auth.authenticate_access_decorator
+async def accept_auth_code(request):
+    state = request.query.get("state")
+    code = request.query.get("code")
+    app_state = request.app["state"]
+
+    if state != app_state.settings["oauth_session_id"]:
+        return web.Response(text="Invalid session state", status=400)
+
+    # Prepare token request
+    token_endpoint = (
+        f"{app_state.settings['integ_oauth_endpoint']}/oauth2/v1/oauth/token"
+    )
+
+    payload = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "client_id": app_state.settings["oauth_client_id"],
+        "client_secret": app_state.settings["oauth_client_secret"],
+        "redirect_uri": app_state.settings["browser_origin"],
+        "code_verifier": app_state.settings["code_verifier"],
+    }
+
+    await app_state.set_licensing_oauth(token_endpoint, payload)
+
+    await __start_matlab_if_licensed(app_state)
+
+    return await root_redirect(request)
+
+    # base_url = request.app["settings"]["base_url"]
+    # query_params = f"?{request.query_string}" if request.query_string else ""
+    # response_url = f"{base_url}/index.html"
+
+    # return aiohttp.web.HTTPFound(response_url)
 
 
 @token_auth.authenticate_access_decorator
@@ -956,6 +1049,8 @@ def create_app(config_name=matlab_proxy.get_default_config_name()):
 
     base_url = app["settings"]["base_url"]
     app.router.add_route("GET", f"{base_url}/get_status", get_status)
+    app.router.add_route("POST", f"{base_url}/login", login)
+    app.router.add_route("GET", f"{base_url}/accept_auth_code", accept_auth_code)
     app.router.add_route("POST", f"{base_url}/authenticate", authenticate)
     app.router.add_route("GET", f"{base_url}/get_auth_token", get_auth_token)
     app.router.add_route("GET", f"{base_url}/get_env_config", get_env_config)

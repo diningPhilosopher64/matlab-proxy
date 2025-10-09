@@ -5,6 +5,7 @@ import MHLM from './MHLM';
 import NLM from './NLM';
 import ExistingLicense from './ExistingLicense';
 import './LicensingGatherer.css';
+import OAuth from './OAuth';
 
 function LicensingGatherer () {
     const [activeTab, setActiveTab] = useState('mhlm');
@@ -18,6 +19,10 @@ function LicensingGatherer () {
         e.preventDefault();
         setActiveTab('nlm');
     };
+    const handleOAuthTabClick = e => {
+        e.preventDefault();
+        setActiveTab('oauth');
+    };
     const handleExistingLicenseTabClick = e => {
         e.preventDefault();
         setActiveTab('existingLicense');
@@ -26,6 +31,12 @@ function LicensingGatherer () {
     const mhlmActive = activeTab === 'mhlm'
         ? 'active'
         : '';
+    const oauthActive = activeTab === 'oauth'
+        ? 'active'
+        : '';
+    const oauthAriaExpanded = activeTab === 'oauth'
+        ? 'true'
+        : 'false';
     const mhlmAriaExpanded = activeTab === 'mhlm'
         ? 'true'
         : 'false';
@@ -49,6 +60,15 @@ function LicensingGatherer () {
                     <div className="modal-body">
                         <div className="tab-container">
                             <ul id="setup-tabs" className="nav nav-tabs" role="tablist">
+                                <li role="presentation" className={oauthActive}>
+                                    <a
+                                        href="#mhlm"
+                                        id="oauth-tab"
+                                        onClick={handleOAuthTabClick}
+                                        role="tab"
+                                        aria-controls="mhlm"
+                                        aria-expanded={oauthAriaExpanded}>OAuth</a>
+                                </li>
                                 <li role="presentation" className={mhlmActive}>
                                     <a
                                         href="#mhlm"
@@ -79,6 +99,9 @@ function LicensingGatherer () {
                             </ul>
                             {/* Because the MHLM tab contains an iframe which is slow to load, always render both tabs and select the active one with React */}
                             <div id="setup-tabs-content" className="tab-content">
+                                <div role="tabpanel" className={`tab-pane ${oauthActive}`} id="oauth" aria-labelledby="oauth-tab">
+                                    <OAuth />
+                                </div>
                                 <div role="tabpanel" className={`tab-pane ${mhlmActive}`} id="mhlm" aria-labelledby="mhlm-tab">
                                     <MHLM />
                                 </div>

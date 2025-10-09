@@ -66,6 +66,13 @@ function Controls ({
             };
             licensingConfirmationMessage = 'Are you sure you want to sign out of MATLAB?';
             break;
+        case 'oauth':
+            licensingData = {
+                label: 'Sign Out',
+                dataTip: 'Sign out of MATLAB'
+            };
+            licensingConfirmationMessage = 'Are you sure you want to sign out of MATLAB?';
+            break;
         case 'nlm':
             licensingData = {
                 label: 'Remove License Server Address',

@@ -3,12 +3,14 @@
 import asyncio
 import os
 import select
+import urllib
 import xml.etree.ElementTree as ET
 
 import aiohttp
+
 from matlab_proxy.default_configuration import config
-from matlab_proxy.util import mwi
 from matlab_proxy.settings import get_process_startup_timeout
+from matlab_proxy.util import mwi
 from matlab_proxy.util.mwi.exceptions import (
     EntitlementError,
     MatlabError,
@@ -319,3 +321,17 @@ async def create_xvfb_process(xvfb_cmd, pipe, env=None):
     os.close(write_descriptor)
 
     return xvfb, display_port
+
+
+async def exchange_auth_code(url, payload):
+    async with aiohttp.ClientSession() as client:
+        form_data = urllib.parse.urlencode(payload)
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        async with client.post(url, data=form_data, headers=headers) as resp:
+            if resp.status != 200:
+                raise Exception(
+                    f"Failed to exchange auth code. Status: {resp.status} for url: {url}, payload: {payload}"
+                )
+
+            token_response = await resp.json()
+            return token_response

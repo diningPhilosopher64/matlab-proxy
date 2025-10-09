@@ -338,6 +338,48 @@ export function fetchSetLicensing (info) {
     };
 }
 
+export function fetchLoginWithOAuth() {
+    return async function (dispatch) {
+        const options = {
+            method: 'POST',
+            body: JSON.stringify({ origin: window.location.origin }),
+        };
+        const response = await fetchWithTimeout(dispatch, './login', options, 10000);
+        const data = await response.json();
+
+        window.location.href = data.auth_url;
+    };
+}
+
+export function fetchHandleOAuthCallback (authCode, state) {
+    return async function (dispatch) {
+        try {
+            const response = await fetchWithTimeout(
+                `./accept_auth_code?code=${encodeURIComponent(authCode)}&state=${encodeURIComponent(state)}`,
+                {
+                    method: 'GET',
+                    credentials: 'include', // TODO: Is this required ?
+                }
+            );
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+
+            // After successful authentication, fetch server status
+            dispatch(receiveSetLicensing(data));       
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            dispatch({
+                type: LOGIN_FAILURE,
+                payload: { error: error.message }
+            });
+        }
+    };
+}
+
 export function fetchUpdateLicensing (info) {
     return async function (dispatch) {
         const options = {

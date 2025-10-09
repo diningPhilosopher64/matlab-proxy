@@ -47,7 +47,8 @@ import {
     fetchServerStatus,
     fetchEnvConfig,
     updateAuthStatus,
-    fetchShutdownIntegration
+    fetchShutdownIntegration,
+    fetchHandleOAuthCallback,
 } from '../../actionCreators';
 import blurredBackground from './MATLAB-env-blur.png';
 import EntitlementSelector from '../EntitlementSelector';
@@ -308,6 +309,25 @@ function App() {
                 dispatch(updateAuthStatus(token));
             }
             window.history.replaceState(null, '', `${baseUrl}index.html`);
+        }
+    }, [dispatch, baseUrl, hasFetchedEnvConfig]);
+
+    useEffect(() => {
+        // Check if this is an OAuth callback
+        if (hasFetchedEnvConfig) {
+            const url = new URL(window.location.href);
+            const queryParams = parseQueryParams(url);
+            const code = queryParams.get('code');
+            const state = queryParams.get('state');
+            
+            // If code and state are present, this is an OAuth callback
+            if (code && state) {
+                // Handle the OAuth callback
+                dispatch(fetchHandleOAuthCallback(code, state));
+                
+                // Clean up the URL
+                window.history.replaceState(null, '', `${baseUrl}index.html`);
+            }
         }
     }, [dispatch, baseUrl, hasFetchedEnvConfig]);
 

@@ -21,7 +21,7 @@ from matlab_proxy.constants import MWI_AUTH_TOKEN_NAME_FOR_HTTP
 from matlab_proxy.util import mwi, system
 from matlab_proxy.util.cookie_jar import HttpOnlyCookieJar
 from matlab_proxy.util.mwi import environment_variables as mwi_env
-from matlab_proxy.util.mwi import token_auth, session_name
+from matlab_proxy.util.mwi import session_name, token_auth
 from matlab_proxy.util.mwi.exceptions import (
     FatalError,
     MatlabInstallError,
@@ -338,6 +338,14 @@ def get_server_settings(config_name):
         "env_config": env_config,
         "integration_name": integration_name,
         "mwapikey": str(uuid.uuid4()),
+        "oauth_client_secret": str(uuid.uuid4()),
+        "oauth_client_id": "matlab-proxy-client",
+        "browser_origin": None,  # Browser origin will be sent by the front end
+        # These 3 values will be generated during the authentication flow
+        "code_verifier": None,
+        "code_challenge": None,
+        "oauth_session_id": None,
+        "integ_mhlm_api_endpoint": "https://licensing-integ1.mathworks.com/mls/service/v1/entitlement/list",
         "matlab_protocol": "https",
         "matlab_config_file": mwi_config_folder / "proxy_app_config.json",
         "mwi_custom_http_headers": mwi.custom_http_headers.get(),
@@ -666,6 +674,7 @@ def _get_mw_licensing_urls(ws_env_suffix):
         "mwa_api_endpoint": f"https://login{ws_env_suffix}.mathworks.com/authenticationws/service/v4",
         "mhlm_api_endpoint": f"https://licensing{ws_env_suffix}.mathworks.com/mls/service/v1/entitlement/list",
         "mwa_login": f"https://login{ws_env_suffix}.mathworks.com",
+        "integ_oauth_endpoint": "https://signin-integ1.mathworks.com",
     }
 
 
