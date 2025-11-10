@@ -60,8 +60,8 @@ jobs:
       - name: Set config to use public npm registry 
         run: npm config set registry https://registry.npmjs.org/
 
-      - name: SED step 
-        run: sed -i 's#https://mw-npm-repository.mathworks.com/artifactory/api/npm/npm-repos/#https://registry.npmjs.org/#g' gui/package-lock.json
+      # - name: SED step 
+      #   run: sed -i 's#https://mw-npm-repository.mathworks.com/artifactory/api/npm/npm-repos/#https://registry.npmjs.org/#g' gui/package-lock.json
 
 
       - name: Verify npm
