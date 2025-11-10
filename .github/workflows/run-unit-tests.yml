@@ -54,7 +54,7 @@ jobs:
           node-version:  24
 
       - name: Install latest npm
-        run : npm install -g npm@11.6.2
+        run : npm install -g npm@9
 
       - name: Verify npm
         run : npm --version
