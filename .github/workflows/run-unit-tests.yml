@@ -56,8 +56,9 @@ jobs:
       - name: Install latest npm
         run : npm install -g npm@9
 
-      - name: Use public npm registry
-        run: echo "registry=https://registry.npmjs.org/" > ~/.npmrc
+
+      - name: Set config to use public npm registry 
+        run: npm config set registry https://registry.npmjs.org/
 
 
 
