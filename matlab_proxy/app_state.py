@@ -136,9 +136,7 @@ class AppState:
         loop = util.get_event_loop()
 
         # matlab-proxy server related tasks which have the same lifetime as the server
-        self.server_tasks = {
-            "update_matlab_state": loop.create_task(self.__update_matlab_state())
-        }
+        self.server_tasks = {}
 
         self.is_idle_timeout_enabled = (
             True if self.settings["mwi_idle_timeout"] else False
@@ -214,15 +212,14 @@ class AppState:
                 self.set_remaining_idle_timeout(new_value)
                 await self.idle_timeout_lock.release()
 
-                logger.debug(
-                    f"{this_task}: IDLE timer decremented to {new_value} seconds"
-                )
+                print(f"{this_task}: IDLE timer decremented to {new_value} seconds")
 
             await asyncio.sleep(1)
 
-        logger.info("The IDLE timer for shutdown has run out...")
-        logger.info(f"Shutting down {self.settings['integration_name']}")
+        print("The IDLE timer for shutdown has run out...")
+        print(f"Shutting down {self.settings['integration_name']}")
         await self.stop_matlab()
+        print("\n\n gg LKJ LKJL;KAEJF L;KSJDL;KJ LKJ;LKJ \n\n")
         loop = util.get_event_loop()
         loop.stop()
 
@@ -1316,6 +1313,9 @@ class AppState:
         # Ensure that previous processes are stopped
         await self.stop_matlab()
 
+        # Start the task to track matlab state
+        loop = util.get_event_loop()
+
         # Acquire lock before setting MATLAB state to 'starting'.
 
         # The lock is held for a substantial part of this function's execution to prevent asynchronous updates
@@ -1393,7 +1393,6 @@ class AppState:
         logger.debug(f"Started MATLAB (PID={matlab.pid})")
         self.processes["matlab"] = matlab
 
-        loop = util.get_event_loop()
         # Start all tasks relevant to MATLAB process
         self.matlab_tasks["matlab_stderr_reader_posix"] = loop.create_task(
             self.__matlab_stderr_reader_posix()
@@ -1403,6 +1402,9 @@ class AppState:
         )
         self.matlab_tasks["update_matlab_port"] = loop.create_task(
             self.__update_matlab_port(self.MATLAB_PORT_CHECK_DELAY_IN_SECONDS)
+        )
+        self.matlab_tasks["update_matlab_state"] = loop.create_task(
+            self.__update_matlab_state()
         )
 
     async def __send_stop_request_to_matlab(self):
