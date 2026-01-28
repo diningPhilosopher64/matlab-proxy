@@ -672,6 +672,7 @@ class AppState:
             "display_name": token_response["referenceDetail"]["displayName"],
             "user_id": token_response["referenceDetail"]["userId"],
             "source_id": payload["client_id"],
+            "token": token_response["accessTokenString"]
         }
 
         # Defaulting to 24b if MATLAB wrapper script is used (only for prototype)
@@ -995,6 +996,17 @@ class AppState:
                 )
             except OnlineLicensingError as e:
                 raise e
+
+        elif self.licensing["type"] == "oauth":
+            matlab_env["MLM_WEB_LICENSE"] = "true"
+            matlab_env["MLM_WEB_USER_CRED"] = self.licensing["token"]
+            matlab_env["MLM_WEB_ID"] = self.licensing["entitlement_id"]
+
+            matlab_env["MHLM_CONTEXT"] = (
+                "MATLAB_JAVASCRIPT_DESKTOP"
+                if os.getenv(mwi_env.get_env_name_mhlm_context()) is None
+                else os.getenv(mwi_env.get_env_name_mhlm_context())
+            )
 
         elif self.licensing["type"] == "nlm":
             matlab_env["MLM_LICENSE_FILE"] = self.licensing["conn_str"]
