@@ -323,6 +323,9 @@ def get_server_settings(config_name):
         else f"{short_desc} - MATLAB Integration"
     )
 
+    # Get environment suffix for dynamic endpoint URLs
+    ws_env, ws_env_suffix = get_ws_env_settings()
+
     cookie_jar = _get_cookie_jar()
     return {
         "create_xvfb_cmd": create_xvfb_cmd,
@@ -339,13 +342,14 @@ def get_server_settings(config_name):
         "integration_name": integration_name,
         "mwapikey": str(uuid.uuid4()),
         "oauth_client_secret": str(uuid.uuid4()),
-        "oauth_client_id": "matlab-proxy-client",
+        "oauth_client_id": "mw-test-device-client",
         "browser_origin": None,  # Browser origin will be sent by the front end
         # These 3 values will be generated during the authentication flow
         "code_verifier": None,
         "code_challenge": None,
         "oauth_session_id": None,
-        "integ_mhlm_api_endpoint": "https://licensing-integ1.mathworks.com/mls/service/v1/entitlement/list",
+        "integ_mhlm_api_endpoint": f"https://licensing{ws_env_suffix}.mathworks.com/mls/service/v1/entitlement/list",
+        "integ_oauth_endpoint": f"https://signin{ws_env_suffix}.mathworks.com",
         "matlab_protocol": "https",
         "matlab_config_file": mwi_config_folder / "proxy_app_config.json",
         "mwi_custom_http_headers": mwi.custom_http_headers.get(),
@@ -674,7 +678,7 @@ def _get_mw_licensing_urls(ws_env_suffix):
         "mwa_api_endpoint": f"https://login{ws_env_suffix}.mathworks.com/authenticationws/service/v4",
         "mhlm_api_endpoint": f"https://licensing{ws_env_suffix}.mathworks.com/mls/service/v1/entitlement/list",
         "mwa_login": f"https://login{ws_env_suffix}.mathworks.com",
-        "integ_oauth_endpoint": "https://signin-integ1.mathworks.com",
+        "integ_oauth_endpoint": f"https://signin{ws_env_suffix}.mathworks.com",
     }
 
 

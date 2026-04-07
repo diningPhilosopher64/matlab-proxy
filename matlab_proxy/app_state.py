@@ -662,7 +662,23 @@ class AppState:
 
     async def set_licensing_oauth(self, url, payload):
         token_response = await mw.exchange_auth_code(url, payload)
+        await self._set_licensing_from_token_response(token_response, payload["client_id"])
 
+    async def set_licensing_oauth_with_token_response(self, token_response):
+        """Set licensing from an existing token response (used by device code flow).
+        
+        Args:
+            token_response (dict): Token response containing access token and user info
+        """
+        await self._set_licensing_from_token_response(token_response, self.settings["oauth_client_id"])
+
+    async def _set_licensing_from_token_response(self, token_response, client_id):
+        """Internal method to set licensing from token response.
+        
+        Args:
+            token_response (dict): Token response from OAuth server
+            client_id (str): The OAuth client ID
+        """
         self.licensing = {
             "type": "oauth",
             "expiry": token_response["expirationDate"],
@@ -671,7 +687,7 @@ class AppState:
             "last_name": token_response["referenceDetail"]["lastName"],
             "display_name": token_response["referenceDetail"]["displayName"],
             "user_id": token_response["referenceDetail"]["userId"],
-            "source_id": payload["client_id"],
+            "source_id": client_id,
             "token": token_response["accessTokenString"]
         }
 

@@ -6,6 +6,7 @@ import NLM from './NLM';
 import ExistingLicense from './ExistingLicense';
 import './LicensingGatherer.css';
 import OAuth from './OAuth';
+import DeviceOAuth from './DeviceOAuth';
 
 function LicensingGatherer () {
     const [activeTab, setActiveTab] = useState('mhlm');
@@ -23,6 +24,10 @@ function LicensingGatherer () {
         e.preventDefault();
         setActiveTab('oauth');
     };
+    const handleDeviceOAuthTabClick = e => {
+        e.preventDefault();
+        setActiveTab('device_oauth');
+    };
     const handleExistingLicenseTabClick = e => {
         e.preventDefault();
         setActiveTab('existingLicense');
@@ -34,7 +39,13 @@ function LicensingGatherer () {
     const oauthActive = activeTab === 'oauth'
         ? 'active'
         : '';
+    const deviceOauthActive = activeTab === 'device_oauth'
+        ? 'active'
+        : '';
     const oauthAriaExpanded = activeTab === 'oauth'
+        ? 'true'
+        : 'false';
+    const deviceOauthAriaExpanded = activeTab === 'device_oauth'
         ? 'true'
         : 'false';
     const mhlmAriaExpanded = activeTab === 'mhlm'
@@ -62,12 +73,21 @@ function LicensingGatherer () {
                             <ul id="setup-tabs" className="nav nav-tabs" role="tablist">
                                 <li role="presentation" className={oauthActive}>
                                     <a
-                                        href="#mhlm"
+                                        href="#oauth"
                                         id="oauth-tab"
                                         onClick={handleOAuthTabClick}
                                         role="tab"
-                                        aria-controls="mhlm"
+                                        aria-controls="oauth"
                                         aria-expanded={oauthAriaExpanded}>OAuth</a>
+                                </li>
+                                <li role="presentation" className={deviceOauthActive}>
+                                    <a
+                                        href="#device_oauth"
+                                        id="device-oauth-tab"
+                                        onClick={handleDeviceOAuthTabClick}
+                                        role="tab"
+                                        aria-controls="device_oauth"
+                                        aria-expanded={deviceOauthAriaExpanded}>Device Code</a>
                                 </li>
                                 <li role="presentation" className={mhlmActive}>
                                     <a
@@ -101,6 +121,9 @@ function LicensingGatherer () {
                             <div id="setup-tabs-content" className="tab-content">
                                 <div role="tabpanel" className={`tab-pane ${oauthActive}`} id="oauth" aria-labelledby="oauth-tab">
                                     <OAuth />
+                                </div>
+                                <div role="tabpanel" className={`tab-pane ${deviceOauthActive}`} id="device_oauth" aria-labelledby="device-oauth-tab">
+                                    <DeviceOAuth />
                                 </div>
                                 <div role="tabpanel" className={`tab-pane ${mhlmActive}`} id="mhlm" aria-labelledby="mhlm-tab">
                                     <MHLM />

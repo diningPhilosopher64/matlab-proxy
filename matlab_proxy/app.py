@@ -20,7 +20,7 @@ import matlab_proxy
 from matlab_proxy import constants, settings, util
 from matlab_proxy.app_state import AppState
 from matlab_proxy.constants import IS_CONCURRENCY_CHECK_ENABLED
-from matlab_proxy.util import mwi
+from matlab_proxy.util import mw, mwi
 from matlab_proxy.util.mwi import download, token_auth
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi.exceptions import AppError, InvalidTokenError, LicensingError
@@ -450,11 +450,232 @@ async def accept_auth_code(request):
 
     return await root_redirect(request)
 
-    # base_url = request.app["settings"]["base_url"]
-    # query_params = f"?{request.query_string}" if request.query_string else ""
-    # response_url = f"{base_url}/index.html"
 
-    # return aiohttp.web.HTTPFound(response_url)
+@token_auth.authenticate_access_decorator
+async def device_authorize(req):
+    """Initiate OAuth 2.0 Device Code flow.
+    
+    Args:
+        req (HTTPRequest): HTTPRequest Object
+    
+    Returns:
+        JSONResponse: Contains user_code, verification_uri, and polling info
+    """
+    state = req.app["state"]
+    
+    # Generate PKCE parameters
+    code_verifier = secrets.token_urlsafe(32)
+    code_challenge_bytes = hashlib.sha256(code_verifier.encode()).digest()
+    code_challenge = base64.urlsafe_b64encode(code_challenge_bytes).decode().rstrip("=")
+    
+    # Store for later use
+    state.settings["code_verifier"] = code_verifier
+    state.settings["code_challenge"] = code_challenge
+    
+    # Prepare device authorization request
+    device_auth_endpoint = f"{state.settings['integ_oauth_endpoint']}/oauth2/v1/oauth/device/authorize"
+
+    print("\n\n Device auth ", device_auth_endpoint, "\n\n")
+    
+    payload = {
+        "client_id": state.settings["oauth_client_id"],
+        "scope": "openid profile email",
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+        "source_id": state.settings.get("oauth_session_id") or secrets.token_hex(8),
+    }
+    
+    try:
+        async with aiohttp.ClientSession() as client:
+            headers = {"Content-Type": "application/json"}
+            # Disable automatic redirects to handle OAuth server responses properly
+            async with client.post(
+                device_auth_endpoint, 
+                json=payload, 
+                headers=headers,
+                allow_redirects=False
+            ) as resp:
+                # Handle redirects manually - OAuth server shouldn't redirect
+                if resp.status in (301, 302, 303, 307, 308):
+                    location = resp.headers.get('Location', 'unknown')
+                    logger.error(f"Device authorization returned redirect to: {location}")
+                    return web.json_response(
+                        {"error": f"Device authorization endpoint not available (redirect to: {location}). The device_code flow may not be enabled on this environment."}, 
+                        status=502
+                    )
+                
+                if resp.status != 200:
+                    error_text = await resp.text()
+                    logger.error(f"Device authorization failed: {resp.status} - {error_text[:500]}")
+                    return web.json_response(
+                        {"error": f"Device authorization failed: HTTP {resp.status}"}, 
+                        status=resp.status
+                    )
+                
+                # Check content type before parsing JSON
+                content_type = resp.headers.get('Content-Type', '')
+                if 'application/json' not in content_type:
+                    text = await resp.text()
+                    logger.error(f"Device authorization returned non-JSON response: {content_type}. Body: {text[:500]}")
+                    return web.json_response(
+                        {"error": f"Device authorization returned non-JSON response ({content_type}). The endpoint may not be properly configured."}, 
+                        status=502
+                    )
+                
+                device_response = await resp.json()
+
+                print("\n\n Device response is ", device_response, "\n\n")
+                
+                # Store device code for polling
+                state.settings["device_code"] = device_response["device_code"]
+                state.settings["device_code_expires_in"] = device_response.get("expires_in", 600)
+                state.settings["device_code_interval"] = device_response.get("interval", 5)
+                
+                # Return user-facing info (NOT the device_code - that's secret)
+                return web.json_response({
+                    "user_code": device_response["user_code"],
+                    "verification_uri": device_response["verification_uri"],
+                    "verification_uri_complete": device_response.get("verification_uri_complete"),
+                    "expires_in": device_response.get("expires_in", 600),
+                    "interval": device_response.get("interval", 5),
+                })
+                
+    except Exception as e:
+        logger.error(f"Device authorization error: {e}")
+        return web.json_response(
+            {"error": f"Device authorization error: {str(e)}"}, 
+            status=500
+        )
+
+
+@token_auth.authenticate_access_decorator
+async def poll_device_token(req):
+    """Poll for OAuth tokens using device code flow with smart caching.
+    
+    This endpoint checks device authorization status using the lightweight
+    /device/authstatus endpoint with caching based on OAuth server's interval.
+    Frontend polls every 1 second, but OAuth server is only polled every 
+    'interval' seconds (as specified by OAuth server response).
+    
+    Args:
+        req (HTTPRequest): HTTPRequest Object
+    
+    Returns:
+        JSONResponse: Status of token acquisition (pending, success, or error)
+    """
+    import time
+    
+    state = req.app["state"]
+    
+    device_code = state.settings.get("device_code")
+    code_verifier = state.settings.get("code_verifier")
+    
+    if not device_code or not code_verifier:
+        return web.json_response(
+            {"status": "error", "error": "No device authorization in progress"},
+            status=400
+        )
+    
+    # Check if we need to poll OAuth server or use cache
+    current_time = time.time()
+    last_check = state.settings.get("device_auth_last_check", 0)
+    # Use interval from OAuth server response (default 5)
+    interval = state.settings.get("device_code_interval", 5)
+    cached_status = state.settings.get("device_auth_cached_status")
+    
+    # If less than interval seconds since last check, return cached status
+    time_since_last_check = current_time - last_check
+    if time_since_last_check < interval and cached_status is not None:
+        logger.debug(f"Returning cached auth status (age: {time_since_last_check:.1f}s): {cached_status}")
+        
+        if cached_status == "PENDING":
+            return web.json_response({
+                "status": "pending",
+                "message": "Waiting for user to authorize",
+            })
+        # For terminal states, we'll fall through to handle them properly
+        # But we shouldn't be caching terminal states anyway
+    
+    # Time to poll OAuth server (cache expired or no cache)
+    try:
+        oauth_host = state.settings['integ_oauth_endpoint']
+        client_id = state.settings["oauth_client_id"]
+        
+        # Check auth status using lightweight endpoint
+        auth_status = await mw.check_device_auth_status(oauth_host, device_code, client_id)
+        status_value = auth_status.get("status", "PENDING")
+        
+        # Update cache with current time and status
+        state.settings["device_auth_last_check"] = current_time
+        state.settings["device_auth_cached_status"] = status_value
+        
+        logger.debug(f"Polled OAuth server (interval: {interval}s), status: {status_value}")
+        
+        # Handle different statuses
+        if status_value == "PENDING":
+            return web.json_response({
+                "status": "pending",
+                "message": "Waiting for user to authorize",
+            })
+        
+        elif status_value == "DENIED":
+            # Clear everything on terminal error
+            state.settings["device_code"] = None
+            state.settings["device_auth_cached_status"] = None
+            state.settings["device_auth_last_check"] = None
+            return web.json_response(
+                {"status": "error", "error": "User denied authorization"},
+                status=403
+            )
+        
+        elif status_value == "EXPIRED":
+            # Clear everything on terminal error
+            state.settings["device_code"] = None
+            state.settings["device_auth_cached_status"] = None
+            state.settings["device_auth_last_check"] = None
+            return web.json_response(
+                {"status": "error", "error": "Device code expired"},
+                status=410
+            )
+        
+        elif status_value in ("AUTHORIZED", "TOKEN_ISSUED"):
+            # User has authorized, now get the tokens
+            token_url = f"{oauth_host}/oauth2/v1/oauth/token"
+            
+            token_response = await mw.exchange_device_token(
+                token_url, device_code, client_id, code_verifier
+            )
+            
+            # Store the tokens and set licensing
+            await state.set_licensing_oauth_with_token_response(token_response)
+            
+            # Clear device code and cache after successful token exchange
+            state.settings["device_code"] = None
+            state.settings["device_auth_cached_status"] = None
+            state.settings["device_auth_last_check"] = None
+            
+            # Start MATLAB if licensed
+            await __start_matlab_if_licensed(state)
+            
+            return web.json_response({
+                "status": "success",
+                "licensing": marshal_licensing_info(state.licensing),
+            })
+        
+        else:
+            logger.warning(f"Unknown auth status: {status_value}")
+            return web.json_response({
+                "status": "pending",
+                "message": f"Unknown status: {status_value}",
+            })
+        
+    except Exception as e:
+        logger.error(f"Device token polling error: {e}")
+        # Return pending so frontend continues polling
+        return web.json_response({
+            "status": "pending",
+            "message": "Waiting for user authorization",
+        })
 
 
 @token_auth.authenticate_access_decorator
@@ -1051,6 +1272,8 @@ def create_app(config_name=matlab_proxy.get_default_config_name()):
     app.router.add_route("GET", f"{base_url}/get_status", get_status)
     app.router.add_route("POST", f"{base_url}/login", login)
     app.router.add_route("GET", f"{base_url}/accept_auth_code", accept_auth_code)
+    app.router.add_route("POST", f"{base_url}/device_authorize", device_authorize)
+    app.router.add_route("GET", f"{base_url}/poll_device_token", poll_device_token)
     app.router.add_route("POST", f"{base_url}/authenticate", authenticate)
     app.router.add_route("GET", f"{base_url}/get_auth_token", get_auth_token)
     app.router.add_route("GET", f"{base_url}/get_env_config", get_env_config)

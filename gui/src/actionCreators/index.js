@@ -25,7 +25,11 @@ import {
     RECEIVE_SESSION_STATUS,
     WAS_EVER_ACTIVE,
     REQUEST_SESSION_STATUS,
-    SET_CLIENT_ID
+    SET_CLIENT_ID,
+    DEVICE_FLOW_START,
+    DEVICE_FLOW_PENDING,
+    DEVICE_FLOW_SUCCESS,
+    DEVICE_FLOW_FAILURE
 } from '../actions';
 import {
     selectMatlabPending,
@@ -465,5 +469,107 @@ export function fetchStartMatlab () {
         const response = await fetchWithTimeout(dispatch, './start_matlab', options, 15000);
         const data = await response.json();
         dispatch(receiveStartMatlab(data));
+    };
+}
+
+// Device Code Flow Action Creators
+
+export function deviceFlowStart(deviceInfo) {
+    return {
+        type: DEVICE_FLOW_START,
+        deviceInfo
+    };
+}
+
+export function deviceFlowPending() {
+    return {
+        type: DEVICE_FLOW_PENDING
+    };
+}
+
+export function deviceFlowSuccess(licensing) {
+    return {
+        type: DEVICE_FLOW_SUCCESS,
+        licensing
+    };
+}
+
+export function deviceFlowFailure(error) {
+    return {
+        type: DEVICE_FLOW_FAILURE,
+        error
+    };
+}
+
+export function fetchDeviceLogin() {
+    return async function (dispatch) {
+        try {
+            dispatch(requestSetLicensing());
+            
+            const response = await fetchWithTimeout(
+                null,
+                './device_authorize',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                },
+                10000
+            );
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to initiate device authorization');
+            }
+            
+            const deviceInfo = await response.json();
+            dispatch(deviceFlowStart(deviceInfo));
+            
+            // Start polling for token
+            dispatch(pollDeviceToken(deviceInfo.interval || 5));
+            
+        } catch (error) {
+            dispatch(deviceFlowFailure(error.message));
+            dispatch(receiveError(error));
+        }
+    };
+}
+
+export function pollDeviceToken(interval = 5) {
+    return async function (dispatch) {
+        dispatch(deviceFlowPending());
+        
+        const poll = async () => {
+            try {
+                const response = await fetchWithTimeout(
+                    null,
+                    './poll_device_token',
+                    {
+                        method: 'GET',
+                        credentials: 'same-origin'
+                    },
+                    30000
+                );
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    dispatch(deviceFlowSuccess(data.licensing));
+                    dispatch(receiveSetLicensing(data));
+                } else if (data.status === 'pending') {
+                    // Continue polling after interval
+                    setTimeout(() => dispatch(pollDeviceToken(interval)), interval * 1000);
+                } else if (data.status === 'error') {
+                    dispatch(deviceFlowFailure(data.error));
+                }
+            } catch (error) {
+                // Network errors - continue polling
+                setTimeout(() => dispatch(pollDeviceToken(interval)), interval * 1000);
+            }
+        };
+        
+        // Start polling
+        setTimeout(poll, interval * 1000);
     };
 }
