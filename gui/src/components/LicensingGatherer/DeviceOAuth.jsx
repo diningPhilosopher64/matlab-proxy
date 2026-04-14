@@ -101,7 +101,6 @@ function DeviceOAuth() {
                     <div className='form-group'>
                         <p>
                             Sign in to your MathWorks Account using the device code flow.
-                            This is useful when you cannot open a browser on this device.
                         </p>
                         <br/>
                         <input
