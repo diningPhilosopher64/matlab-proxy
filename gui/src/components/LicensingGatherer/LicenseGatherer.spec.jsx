@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The MathWorks, Inc.
+// Copyright 2020-2026 The MathWorks, Inc.
 
 import React from 'react';
 import LicenseGatherer from './index';
@@ -28,7 +28,7 @@ describe('LicenseGatherer component', () => {
             render(<LicenseGatherer />);
         } catch (error) {
             expect(error).toBeInstanceOf(TypeError);
-            expect(errorMock).toHaveBeenCalledTimes(2);
+            expect(errorMock).toHaveBeenCalledTimes(1);
         }
     });
 

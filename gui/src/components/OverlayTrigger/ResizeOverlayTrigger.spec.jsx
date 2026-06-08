@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The MathWorks, Inc.
+// Copyright 2020-2026 The MathWorks, Inc.
 
 import { render } from '../../test/utils/react-test';
 import { fireEvent, waitFor } from '@testing-library/react';
@@ -22,10 +22,12 @@ describe('OverlayTrigger Component', () => {
         initialState.tutorialHidden = false;
         initialState.overlayVisibility = true;
 
-        mockIntersectionObserver.mockReturnValue({
-            observe,
-            unobserve,
-            disconnect
+        mockIntersectionObserver.mockImplementation(function () {
+            return {
+                observe,
+                unobserve,
+                disconnect
+            };
         });
 
         window.IntersectionObserver = mockIntersectionObserver;

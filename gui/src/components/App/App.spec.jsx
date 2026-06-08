@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The MathWorks, Inc.
+// Copyright 2020-2026 The MathWorks, Inc.
 
 import React from 'react';
 import { render } from '../../test/utils/react-test';
@@ -34,13 +34,12 @@ describe('App Component', () => {
         // Set initial hasFetched to true to skip mocking the initial /get_status request
         initialState.serverStatus.hasFetched = true;
 
-        const mockIntersectionObserver = vi.fn();
-        mockIntersectionObserver.mockReturnValue({
-            observe: () => null,
-            disconnect: () => null
+        window.IntersectionObserver = vi.fn().mockImplementation(function () {
+            return {
+                observe: () => null,
+                disconnect: () => null
+            };
         });
-
-        window.IntersectionObserver = mockIntersectionObserver;
     });
 
     afterEach(() => {
