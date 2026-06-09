@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { useInterval, useTimeoutFn } from 'react-use';
+import { useInterval, useTimeoutFn } from '../../hooks';
 import './App.css';
 import Confirmation from '../Confirmation';
 import OverlayTrigger from '../OverlayTrigger';
