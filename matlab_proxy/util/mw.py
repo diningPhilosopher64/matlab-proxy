@@ -356,7 +356,7 @@ async def poll_device_token(token_url, device_code, client_id, code_verifier, in
     """
     import time
     
-    DEVICE_CODE_GRANT_TYPE = "device_code"
+    DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
     deadline = time.time() + expires_in
     current_interval = interval
     
@@ -481,5 +481,46 @@ async def exchange_device_token(token_url, device_code, client_id, code_verifier
                 except:
                     text = await resp.text()
                     raise Exception(f"Token exchange failed: HTTP {resp.status}")
-            
+
+            return await resp.json()
+
+
+async def refresh_oauth_token(refresh_url, client_id, refresh_token, correlation_id=None):
+    """Refresh an OAuth access token using the refresh token.
+
+    Args:
+        refresh_url (str): The OAuth refresh endpoint URL
+        client_id (str): The OAuth client ID
+        refresh_token (str): The refresh token
+        correlation_id (str, optional): Required for MWARI-based refresh, not needed for SAT
+
+    Returns:
+        dict: New token response (same shape as /token response)
+
+    Raises:
+        Exception: If refresh fails
+    """
+    payload = {
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "client_id": client_id,
+    }
+
+    if correlation_id:
+        payload["correlation_id"] = correlation_id
+
+    async with aiohttp.ClientSession() as client:
+        async with client.post(
+            refresh_url,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        ) as resp:
+            if resp.status != 200:
+                try:
+                    error_response = await resp.json()
+                except Exception:
+                    error_response = {}
+                error = error_response.get("error", f"HTTP {resp.status}")
+                raise Exception(f"Token refresh failed: {error}")
+
             return await resp.json()

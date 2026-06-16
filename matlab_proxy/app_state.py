@@ -336,6 +336,43 @@ class AppState:
                                 )
                         else:
                             self.__reset_and_delete_cached_config()
+                    elif licensing["type"] == "oauth":
+                        self.licensing = {
+                            "type": "oauth",
+                            "expiry": licensing.get("expiry"),
+                            "email_addr": licensing.get("email_addr"),
+                            "first_name": licensing.get("first_name"),
+                            "last_name": licensing.get("last_name"),
+                            "display_name": licensing.get("display_name"),
+                            "user_id": licensing.get("user_id"),
+                            "source_id": licensing.get("source_id"),
+                            "token": licensing.get("token"),
+                            "refresh_token": licensing.get("refresh_token"),
+                            "correlation_id": licensing.get("correlation_id"),
+                            "entitlements": licensing.get("entitlements", []),
+                            "entitlement_id": licensing.get("entitlement_id"),
+                        }
+
+                        expiry_window = datetime.strptime(
+                            self.licensing["expiry"], "%Y-%m-%dT%H:%M:%S.%f%z"
+                        ) - timedelta(hours=1)
+
+                        if expiry_window > datetime.now(timezone.utc):
+                            logger.debug(
+                                "Using cached OAuth licensing to start MATLAB."
+                            )
+                        elif self.licensing.get("refresh_token"):
+                            try:
+                                await self.__refresh_oauth_licensing()
+                                logger.debug(
+                                    "Refreshed expired OAuth token from cache."
+                                )
+                            except Exception as e:
+                                logger.warning(f"OAuth token refresh failed: {e}")
+                                self.__reset_and_delete_cached_config()
+                        else:
+                            self.__reset_and_delete_cached_config()
+
                     elif licensing["type"] == "existing_license":
                         logger.debug("Using cached existing license to start MATLAB")
                         self.licensing = licensing
@@ -648,6 +685,20 @@ class AppState:
 
         await func_to_update_matlab_state()
 
+    async def __refresh_oauth_licensing(self):
+        """Refresh the OAuth access token using the stored refresh token."""
+        refresh_url = f"{self.settings['integ_oauth_endpoint']}/oauth2/v1/oauth/refresh"
+        client_id = self.settings["oauth_client_id"]
+
+        token_response = await mw.refresh_oauth_token(
+            refresh_url,
+            client_id,
+            self.licensing["refresh_token"],
+            self.licensing.get("correlation_id"),
+        )
+
+        await self._set_licensing_from_token_response(token_response, client_id)
+
     async def set_licensing_nlm(self, conn_str):
         """Set the licensing type to NLM and the connection string."""
 
@@ -674,21 +725,27 @@ class AppState:
 
     async def _set_licensing_from_token_response(self, token_response, client_id):
         """Internal method to set licensing from token response.
-        
+
         Args:
-            token_response (dict): Token response from OAuth server
+            token_response (dict): Token response from OAuth server (contains mwa_token nested object)
             client_id (str): The OAuth client ID
         """
+        mwa_token = token_response.get("mwa_token", token_response)
+        reference_detail = mwa_token.get("referenceDetail", {})
+        access_token = mwa_token.get("accessTokenString", token_response.get("access_token"))
+
         self.licensing = {
             "type": "oauth",
-            "expiry": token_response["expirationDate"],
-            "email_addr": token_response["referenceDetail"]["email"],
-            "first_name": token_response["referenceDetail"]["firstName"],
-            "last_name": token_response["referenceDetail"]["lastName"],
-            "display_name": token_response["referenceDetail"]["displayName"],
-            "user_id": token_response["referenceDetail"]["userId"],
+            "expiry": mwa_token.get("expirationDate"),
+            "email_addr": reference_detail.get("email"),
+            "first_name": reference_detail.get("firstName"),
+            "last_name": reference_detail.get("lastName"),
+            "display_name": reference_detail.get("displayName"),
+            "user_id": reference_detail.get("userId"),
             "source_id": client_id,
-            "token": token_response["accessTokenString"]
+            "token": access_token,
+            "refresh_token": token_response.get("refresh_token"),
+            "correlation_id": token_response.get("correlation_id"),
         }
 
         # Defaulting to 24b if MATLAB wrapper script is used (only for prototype)
@@ -700,7 +757,7 @@ class AppState:
 
         entitlements = await mw.fetch_entitlements(
             self.settings["integ_mhlm_api_endpoint"],
-            token_response["accessTokenString"],
+            access_token,
             matlab_version,
         )
 
@@ -1014,6 +1071,18 @@ class AppState:
                 raise e
 
         elif self.licensing["type"] == "oauth":
+            # Refresh token if expired or near expiry (within 1 hour)
+            if self.licensing.get("refresh_token") and self.licensing.get("expiry"):
+                try:
+                    expiry_window = datetime.strptime(
+                        self.licensing["expiry"], "%Y-%m-%dT%H:%M:%S.%f%z"
+                    ) - timedelta(hours=1)
+                    if expiry_window <= datetime.now(timezone.utc):
+                        logger.info("OAuth token expired or near expiry, refreshing...")
+                        await self.__refresh_oauth_licensing()
+                except Exception as e:
+                    logger.warning(f"OAuth token refresh failed at MATLAB start: {e}")
+
             matlab_env["MLM_WEB_LICENSE"] = "true"
             matlab_env["MLM_WEB_USER_CRED"] = self.licensing["token"]
             matlab_env["MLM_WEB_ID"] = self.licensing["entitlement_id"]
