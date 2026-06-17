@@ -21,6 +21,7 @@ from matlab_proxy import constants, settings, util
 from matlab_proxy.app_state import AppState
 from matlab_proxy.constants import IS_CONCURRENCY_CHECK_ENABLED
 from matlab_proxy.util import mw, mwi
+from matlab_proxy.util.dpop import DPoPKey
 from matlab_proxy.util.mwi import download, token_auth
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi.exceptions import AppError, InvalidTokenError, LicensingError
@@ -471,12 +472,14 @@ async def device_authorize(req):
     # Store for later use
     state.settings["code_verifier"] = code_verifier
     state.settings["code_challenge"] = code_challenge
-    
+
+    # Generate DPoP keypair for this session (same key used for token exchange and refresh)
+    dpop_key = DPoPKey()
+    state.settings["dpop_key"] = dpop_key
+
     # Prepare device authorization request
     device_auth_endpoint = f"{state.settings['integ_oauth_endpoint']}/oauth2/v1/oauth/device/authorize"
 
-    print("\n\n Device auth ", device_auth_endpoint, "\n\n")
-    
     payload = {
         "client_id": state.settings["oauth_client_id"],
         "scope": "openid profile email",
@@ -484,14 +487,17 @@ async def device_authorize(req):
         "code_challenge_method": "S256",
         "source_id": state.settings.get("oauth_session_id") or secrets.token_hex(8),
     }
-    
+
     try:
         async with aiohttp.ClientSession() as client:
-            headers = {"Content-Type": "application/json"}
+            headers = {
+                "Content-Type": "application/json",
+                "DPoP": dpop_key.generate_proof("POST", device_auth_endpoint),
+            }
             # Disable automatic redirects to handle OAuth server responses properly
             async with client.post(
-                device_auth_endpoint, 
-                json=payload, 
+                device_auth_endpoint,
+                json=payload,
                 headers=headers,
                 allow_redirects=False
             ) as resp:
@@ -641,9 +647,10 @@ async def poll_device_token(req):
         elif status_value in ("AUTHORIZED", "TOKEN_ISSUED"):
             # User has authorized, now get the tokens
             token_url = f"{oauth_host}/oauth2/v1/oauth/token"
-            
+            dpop_key = state.settings.get("dpop_key")
+
             token_response = await mw.exchange_device_token(
-                token_url, device_code, client_id, code_verifier
+                token_url, device_code, client_id, code_verifier, dpop_key=dpop_key
             )
             
             # Store the tokens and set licensing

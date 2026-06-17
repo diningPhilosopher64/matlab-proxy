@@ -689,12 +689,14 @@ class AppState:
         """Refresh the OAuth access token using the stored refresh token."""
         refresh_url = f"{self.settings['integ_oauth_endpoint']}/oauth2/v1/oauth/refresh"
         client_id = self.settings["oauth_client_id"]
+        dpop_key = self.settings.get("dpop_key")
 
         token_response = await mw.refresh_oauth_token(
             refresh_url,
             client_id,
             self.licensing["refresh_token"],
             self.licensing.get("correlation_id"),
+            dpop_key=dpop_key,
         )
 
         await self._set_licensing_from_token_response(token_response, client_id)

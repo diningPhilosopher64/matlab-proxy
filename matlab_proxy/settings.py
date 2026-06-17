@@ -342,7 +342,7 @@ def get_server_settings(config_name):
         "integration_name": integration_name,
         "mwapikey": str(uuid.uuid4()),
         "oauth_client_secret": str(uuid.uuid4()),
-        "oauth_client_id": "mw-test-device-client",
+        "oauth_client_id": "mw-cpi-matlab-proxy",
         "browser_origin": None,  # Browser origin will be sent by the front end
         # These 3 values will be generated during the authentication flow
         "code_verifier": None,
