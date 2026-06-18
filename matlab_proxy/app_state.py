@@ -1084,6 +1084,10 @@ class AppState:
                         await self.__refresh_oauth_licensing()
                 except Exception as e:
                     logger.warning(f"OAuth token refresh failed at MATLAB start: {e}")
+                    self.__reset_and_delete_cached_config()
+                    raise OnlineLicensingError(
+                        "OAuth session expired. Please sign in again."
+                    )
 
             matlab_env["MLM_WEB_LICENSE"] = "true"
             matlab_env["MLM_WEB_USER_CRED"] = self.licensing["token"]
