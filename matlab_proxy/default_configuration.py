@@ -12,6 +12,7 @@ class ConfigKeys(Enum):
     EXT_NAME = "extension_name"
     EXT_NAME_DESC = "extension_name_short_description"
     SHOW_SHUTDOWN_BUTTON = "should_show_shutdown_button"
+    OAUTH_CLIENT_ID = "oauth_client_id"
 
 
 # Configure matlab_proxy
@@ -30,6 +31,14 @@ config = {
     ConfigKeys.EXT_NAME_DESC.value: "MATLAB Desktop",
     # Show the shutdown button in the UI for matlab-proxy
     ConfigKeys.SHOW_SHUTDOWN_BUTTON.value: True,
+    # OAuth 2.0 public client id registered with the MathWorks OAuth server.
+    # Its presence enables the OAuth device code sign-in flow (replacing the
+    # legacy MHLM iframe). Each integration should declare its own client id so
+    # that the consent screen shows the correct product name. This key is
+    # intentionally NOT part of get_required_config() so that integrations which
+    # have not yet adopted the device code flow gracefully fall back to the MHLM
+    # iframe.
+    ConfigKeys.OAUTH_CLIENT_ID.value: "mw-cpi-matlab-proxy",
 }
 
 

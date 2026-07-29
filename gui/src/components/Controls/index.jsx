@@ -15,7 +15,7 @@ import {
     selectError,
     selectIsAuthenticated,
     selectAuthEnabled,
-    selectLicensingIsMhlm,
+    selectLicensingUsesEntitlements,
     selectIsEntitled,
     selectShouldShowShutdownButton
 } from '../../selectors';
@@ -50,9 +50,10 @@ function Controls ({
     const licensingInfo = useSelector(selectLicensingInfo);
     const canResetLicensing = licensed && !submitting;
 
-    // If licensing type is MHLM and the user is not entitled ( MATLAB version couldn't be determined (VersionInfo.xml was not found))
-    // then start, stop & signout buttons should be disabled.
-    const licensingIsMhlm = useSelector(selectLicensingIsMhlm);
+    // If licensing uses entitlements (MHLM or OAuth) and the user is not entitled
+    // (no entitlement selected yet, or MATLAB version couldn't be determined because
+    // VersionInfo.xml was not found) then start, stop & signout buttons should be disabled.
+    const licensingUsesEntitlements = useSelector(selectLicensingUsesEntitlements);
     const isEntitled = useSelector(selectIsEntitled);
 
     const shouldShowShutdownButton = useSelector(selectShouldShowShutdownButton);
@@ -60,6 +61,7 @@ function Controls ({
     let licensingData, licensingConfirmationMessage;
     switch (licensingInfo?.type) {
         case 'mhlm':
+        case 'oauth':
             licensingData = {
                 label: 'Sign Out',
                 dataTip: 'Sign out of MATLAB'
@@ -140,7 +142,7 @@ function Controls ({
                     ? 'restart'
                     : 'start')}
                 onClick={() => callback(Confirmations.START)}
-                disabled={!licensed || matlabStarting || matlabStopping || (authEnabled && !isAuthenticated) || (licensingIsMhlm && !isEntitled)}
+                disabled={!licensed || matlabStarting || matlabStopping || (authEnabled && !isAuthenticated) || (licensingUsesEntitlements && !isEntitled)}
                 data-tooltip-id="control-button-tooltip"
                 data-tooltip-content={`${matlabUp
                     ? 'Restart'

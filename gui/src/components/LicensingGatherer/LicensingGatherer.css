@@ -3,3 +3,34 @@
 p#LicensingGathererNote {
     margin: 15px 0 0 0;
 }
+
+/* Keep all licensing tabs on a single row when the device code flow is
+   enabled. That flow adds a fourth tab, which otherwise wraps onto a second
+   line in the fixed-width setup dialog because the bootstrap nav-tabs items
+   float. Lay the tabs out as a non-wrapping flex row, widen the dialog
+   enough to fit the four labels, and tighten the per-tab padding so the row
+   does not overflow (the modal body clips overflow).
+
+   These rules are scoped to .device-oauth-enabled so that integrations
+   without the device code tab (three tabs) keep the original dialog width
+   and default tab layout. */
+@media (min-width: 768px) {
+    #setup-dialog.device-oauth-enabled .modal-dialog {
+        width: 880px;
+    }
+}
+
+#setup-dialog.device-oauth-enabled #setup-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+}
+
+#setup-dialog.device-oauth-enabled #setup-tabs > li {
+    float: none;
+}
+
+#setup-dialog.device-oauth-enabled #setup-tabs > li > a {
+    white-space: nowrap;
+    padding-left: 10px;
+    padding-right: 10px;
+}

@@ -93,6 +93,47 @@ describe('EntitlementSelector Component', () => {
         mockFetchUpdateLicensing.mockRestore();           
     });
 
+    it('should show the license selector for OAuth licensing with multiple entitlements', () => {
+        const mockFetchServerStatus = vi.spyOn(actionCreators, 'fetchServerStatus').mockImplementation(() => {
+            return () => Promise.resolve();
+        });
+        const mockFetchEnvConfig = vi.spyOn(actionCreators, 'fetchEnvConfig').mockImplementation(() => {
+            return () => Promise.resolve();
+        });
+
+        initialState.serverStatus.licensingInfo.type = 'oauth';
+        initialState.serverStatus.licensingInfo.entitlementId = null;
+
+        const { container } = render(<App />, { initialState });
+
+        // OAuth users with >1 entitlement and no selection must still be shown
+        // the selector - previously this only fired for MHLM (M1 dead-end).
+        expect(
+            container.querySelector('#entitlement-selection')
+        ).toBeInTheDocument();
+
+        mockFetchServerStatus.mockRestore();
+        mockFetchEnvConfig.mockRestore();
+    });
+
+    it('should dispatch update_entitlement with the OAuth licensing type on submit', () => {
+        const mockFetchUpdateLicensing = vi.spyOn(actionCreators, 'fetchUpdateLicensing').mockImplementation(() => {
+            return () => Promise.resolve();
+        });
+
+        initialState.serverStatus.licensingInfo.type = 'oauth';
+        initialState.serverStatus.licensingInfo.entitlementId = null;
+
+        const { getByTestId } = render(<EntitlementSelector options={options} />, { initialState });
+        fireEvent.click(getByTestId('submitButton'));
+
+        expect(mockFetchUpdateLicensing).toHaveBeenCalledWith(
+            expect.objectContaining({ type: 'oauth', entitlement_id: 'entitlement1' })
+        );
+
+        mockFetchUpdateLicensing.mockRestore();
+    });
+
     it('should filter and format entitlements correctly', async () => {
         const formattedEntitlements = filterAndFormatEntitlements(options);
 

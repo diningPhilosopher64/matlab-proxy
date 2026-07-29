@@ -145,6 +145,54 @@ def get_ws_env_settings():
     return ws_env, ws_env_suffix
 
 
+def get_oauth_settings(env_config, ws_env_suffix):
+    """Compute OAuth device code flow settings.
+
+    The device code flow is enabled only when the supplied env_config declares an
+    ``oauth_client_id``. When it is absent, ``online_auth_method`` is set to
+    "mhlm" so that the legacy MHLM iframe sign-in is used instead (graceful
+    fallback for integrations that have not yet adopted the device code flow).
+
+    Args:
+        env_config (dict): The validated extension configuration.
+        ws_env_suffix (str): The environment suffix for the MathWorks URLs.
+
+    Returns:
+        dict: OAuth related settings, including transient per-session fields.
+    """
+    oauth_client_id = env_config.get("oauth_client_id")
+
+    return {
+        "oauth_client_id": oauth_client_id,
+        # "device_code" enables the OAuth device code flow, "mhlm" falls back to
+        # the legacy iframe sign-in. The frontend reads this to decide which
+        # sign-in UI to render.
+        "online_auth_method": "device_code" if oauth_client_id else "mhlm",
+        # MathWorks OAuth server base URL (signin host).
+        "integ_oauth_endpoint": f"https://signin{ws_env_suffix}.mathworks.com",
+        # MHLM entitlement endpoint used to fetch entitlements for an OAuth token.
+        "integ_mhlm_api_endpoint": f"https://licensing{ws_env_suffix}.mathworks.com/mls/service/v1/entitlement/list",
+        # Transient per-session fields populated during an active device flow.
+        "code_verifier": None,
+        "code_challenge": None,
+        "oauth_session_id": None,
+        "dpop_key": None,
+        "device_code": None,
+        "device_code_interval": None,
+        "device_auth_last_check": None,
+        "device_auth_cached_status": None,
+        # User-facing fields echoed back on every pending poll so the frontend can
+        # rehydrate the device flow after a page refresh (the browser loses its
+        # in-memory state, but the flow lives on server-side here).
+        "device_user_code": None,
+        "device_verification_uri": None,
+        "device_verification_uri_complete": None,
+        # Absolute wall-clock deadline (epoch seconds) for the device code, used to
+        # compute the remaining "expires_in" on each poll.
+        "device_code_expiry": None,
+    }
+
+
 def get_mwi_config_folder(dev=False):
     if dev:
         return get_test_temp_dir()
@@ -178,6 +226,7 @@ def get_dev_settings(config):
         mwi_auth_token,
         mwi_auth_token_hash,
     ) = token_auth.generate_mwi_auth_token_and_hash().values()
+    env_config = mwi.validators.validate_env_config(config)
     return {
         "error": None,
         "matlab_path": Path(),
@@ -202,7 +251,8 @@ def get_dev_settings(config):
         "mhlm_api_endpoint": f"https://licensing{ws_env_suffix}.mathworks.com/mls/service/v1/entitlement/list",
         "mwa_login": f"https://login{ws_env_suffix}.mathworks.com",
         "mwi_custom_http_headers": mwi.custom_http_headers.get(),
-        "env_config": mwi.validators.validate_env_config(config),
+        "env_config": env_config,
+        **get_oauth_settings(env_config, ws_env_suffix),
         "integration_name": "MATLAB Desktop",
         "ssl_context": None,
         "mwi_logs_root_dir": get_mwi_logs_root_dir(dev=True),
@@ -316,6 +366,7 @@ def get_server_settings(config_name):
     mwi_log_file = os.getenv(mwi_env.get_env_name_log_file(), None)
 
     env_config = mwi.validators.validate_env_config(config_name)
+    _, ws_env_suffix = get_ws_env_settings()
     short_desc = env_config["extension_name_short_description"]
     integration_name = (
         short_desc
@@ -336,6 +387,7 @@ def get_server_settings(config_name):
             os.getenv(mwi_env.get_env_name_app_port())
         ),
         "env_config": env_config,
+        **get_oauth_settings(env_config, ws_env_suffix),
         "integration_name": integration_name,
         "mwapikey": str(uuid.uuid4()),
         "matlab_protocol": "https",

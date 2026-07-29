@@ -40,6 +40,7 @@ function Information ({
     let info;
     switch (licensingInfo?.type) {
         case 'mhlm':
+        case 'oauth':
             info = {
                 label: `Online License Manager (${licensingInfo.emailAddress})`
             };

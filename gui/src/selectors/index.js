@@ -41,6 +41,13 @@ export const selectHasFetchedEnvConfig = createSelector(
     envConfig => envConfig !== null
 );
 
+// Which online sign-in method to render: 'device_code' (OAuth device code flow)
+// or 'mhlm' (legacy iframe). Defaults to 'mhlm' when not provided by the backend.
+export const selectOnlineAuthMethod = createSelector(
+    selectEnvConfig,
+    envConfig => envConfig?.online_auth_method ?? 'mhlm'
+);
+
 export const selectIsError = createSelector(
     selectError,
     error => error !== null
@@ -133,6 +140,12 @@ export const selectLicensingIsMhlm = createSelector(
     (licensingInfo, licensingProvided) => licensingProvided && licensingInfo.type === 'mhlm'
 );
 
+export const selectLicensingIsOauth = createSelector(
+    selectLicensingInfo,
+    selectLicensingProvided,
+    (licensingInfo, licensingProvided) => licensingProvided && licensingInfo.type === 'oauth'
+);
+
 export const selectLicensingMhlmUsername = createSelector(
     selectLicensingInfo,
     selectLicensingIsMhlm,
@@ -141,17 +154,47 @@ export const selectLicensingMhlmUsername = createSelector(
         : ''
 );
 
-// Selector to check if the license type is mhlm and entitlements property is not empty
+// Per-type "has a non-empty entitlement list" selectors. Kept separate (rather
+// than one generic check) so that removing a licensing mode later is a matter
+// of deleting its selector and dropping it from the composers below - no
+// consumer needs to change. Add a new mode the same way: define its own
+// selectLicensing<Mode>HasEntitlements and OR it into the composers.
 export const selectLicensingMhlmHasEntitlements = createSelector(
     selectLicensingIsMhlm,
     selectLicensingInfo,
     (isMhlm, licensingInfo) => isMhlm && licensingInfo.entitlements && licensingInfo.entitlements.length > 0
 );
 
+export const selectLicensingOauthHasEntitlements = createSelector(
+    selectLicensingIsOauth,
+    selectLicensingInfo,
+    (isOauth, licensingInfo) => isOauth && licensingInfo.entitlements && licensingInfo.entitlements.length > 0
+);
+
+// Composers: the single place that knows which licensing modes drive the shared
+// entitlement-selection UI and `update_entitlement` endpoint. Consumers import
+// these and stay agnostic to the concrete mode list.
+//
+// selectLicensingUsesEntitlements gates on type alone (used to disable
+// start/stop/signout until an entitlement is chosen); selectLicensingHasEntitlements
+// additionally requires the entitlement list to be populated (used to decide
+// whether to surface the selector overlay).
+export const selectLicensingUsesEntitlements = createSelector(
+    selectLicensingIsMhlm,
+    selectLicensingIsOauth,
+    (isMhlm, isOauth) => isMhlm || isOauth
+);
+
+export const selectLicensingHasEntitlements = createSelector(
+    selectLicensingMhlmHasEntitlements,
+    selectLicensingOauthHasEntitlements,
+    (mhlmHasEntitlements, oauthHasEntitlements) => mhlmHasEntitlements || oauthHasEntitlements
+);
+
 export const selectIsEntitled = createSelector(
     selectLicensingInfo,
-    selectLicensingMhlmHasEntitlements,
-    (licensingInfo, entitlementIdInfo) => entitlementIdInfo && licensingInfo.entitlementId
+    selectLicensingHasEntitlements,
+    (licensingInfo, hasEntitlements) => hasEntitlements && licensingInfo.entitlementId
 );
 
 // TODO Are these overkill? Perhaps just selecting status would be enough

@@ -26,7 +26,7 @@ import {
     selectHasFetchedEnvConfig,
     selectAuthEnabled,
     selectIsAuthenticated,
-    selectLicensingMhlmHasEntitlements,
+    selectLicensingHasEntitlements,
     selectIsEntitled,
     selectLicensingInfo,
     selectIsConcurrent,
@@ -61,7 +61,7 @@ function App() {
     const hasFetchedServerStatus = useSelector(selectHasFetchedServerStatus);
     const hasFetchedEnvConfig = useSelector(selectHasFetchedEnvConfig);
     const licensingProvided = useSelector(selectLicensingProvided);
-    const hasEntitlements = useSelector(selectLicensingMhlmHasEntitlements);
+    const hasEntitlements = useSelector(selectLicensingHasEntitlements);
     const isEntitled = useSelector(selectIsEntitled);
     const matlabUp = useSelector(selectMatlabUp);
     const error = useSelector(selectError);

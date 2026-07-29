@@ -418,6 +418,8 @@ async def test_get_env_config(test_server):
         "isConcurrencyEnabled": "foobar",
         "idleTimeoutDuration": 100,
         "browserTitle": "MATLAB R2020b",
+        "oauth_client_id": "mw-cpi-matlab-proxy",
+        "online_auth_method": "device_code",
     }
     resp = await test_server.get("/get_env_config")
     assert resp.status == HTTPStatus.OK

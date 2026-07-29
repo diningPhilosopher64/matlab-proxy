@@ -3,6 +3,7 @@
 import asyncio
 import os
 import select
+import urllib.parse
 import xml.etree.ElementTree as ET
 
 import aiohttp
@@ -182,6 +183,185 @@ async def fetch_access_token(mwa_api_endpoint, identity_token, source_id):
             return {
                 "token": data["accessTokenString"],
             }
+
+
+DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
+
+
+async def device_authorize(
+    oauth_host, client_id, code_challenge, source_id, dpop_key=None
+):
+    """Initiate the OAuth 2.0 device authorization flow with the MathWorks OAuth server.
+
+    Args:
+        oauth_host (str): OAuth server base URL (e.g. "https://signin.mathworks.com").
+        client_id (str): The OAuth public client id.
+        code_challenge (str): PKCE code challenge (S256 of the code verifier).
+        source_id (str): Session tracking id.
+        dpop_key (DPoPKey, optional): DPoPKey instance for proof-of-possession.
+
+    Raises:
+        OnlineLicensingError: If the endpoint redirects, returns non-JSON, or errors.
+
+    Returns:
+        dict: Device authorization response with user_code, verification_uri,
+            device_code, expires_in and interval.
+    """
+    device_auth_endpoint = f"{oauth_host}/oauth2/v1/oauth/device/authorize"
+
+    payload = {
+        "client_id": client_id,
+        "scope": "openid profile email",
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+        "source_id": source_id,
+    }
+
+    headers = {"Content-Type": "application/json"}
+    if dpop_key:
+        headers["DPoP"] = dpop_key.generate_proof("POST", device_auth_endpoint)
+
+    async with aiohttp.ClientSession(trust_env=True) as client_session:
+        async with client_session.post(
+            device_auth_endpoint,
+            json=payload,
+            headers=headers,
+            allow_redirects=False,
+        ) as resp:
+            # Reject redirects - the OAuth server should respond directly. A
+            # redirect usually means the device flow is not available here.
+            if resp.status in (301, 302, 303, 307, 308):
+                location = resp.headers.get("Location", "unknown")
+                raise OnlineLicensingError(
+                    f"Device authorization endpoint not available (redirect to: {location})."
+                )
+
+            if resp.status != 200:
+                raise OnlineLicensingError(
+                    f"Device authorization failed: HTTP {resp.status}"
+                )
+
+            content_type = resp.headers.get("Content-Type", "")
+            if "application/json" not in content_type:
+                raise OnlineLicensingError(
+                    "Device authorization returned a non-JSON response."
+                )
+
+            return await resp.json()
+
+
+async def check_device_auth_status(oauth_host, device_code, client_id):
+    """Check device authorization status using the lightweight GET endpoint.
+
+    This is cheaper than the token endpoint and doesn't consume token rate limits.
+
+    Args:
+        oauth_host (str): OAuth server base URL.
+        device_code (str): The device code from device authorization.
+        client_id (str): The OAuth client id.
+
+    Returns:
+        dict: With a "status" field: "PENDING", "AUTHORIZED", "TOKEN_ISSUED",
+            "DENIED" or "EXPIRED".
+    """
+    params = urllib.parse.urlencode(
+        {"device_code": device_code, "client_id": client_id}
+    )
+    url = f"{oauth_host}/oauth2/v1/oauth/device/authstatus?{params}"
+
+    async with aiohttp.ClientSession(trust_env=True) as client_session:
+        async with client_session.get(url) as resp:
+            if resp.status != 200:
+                text = await resp.text()
+                raise OnlineLicensingError(
+                    f"Auth status check failed: {resp.status} - {text[:200]}"
+                )
+            return await resp.json()
+
+
+async def exchange_device_token(
+    token_url, device_code, client_id, code_verifier, dpop_key=None
+):
+    """Exchange a device code for tokens (single attempt, no polling).
+
+    Called after authstatus returns AUTHORIZED or TOKEN_ISSUED.
+
+    Args:
+        token_url (str): The OAuth token endpoint URL.
+        device_code (str): The device code from device authorization.
+        client_id (str): The OAuth client id.
+        code_verifier (str): The PKCE code verifier.
+        dpop_key (DPoPKey, optional): DPoPKey instance for proof-of-possession.
+
+    Returns:
+        dict: Token response containing access_token, refresh_token, mwa_token, etc.
+    """
+    payload = {
+        "grant_type": DEVICE_CODE_GRANT_TYPE,
+        "device_code": device_code,
+        "client_id": client_id,
+        "code_verifier": code_verifier,
+    }
+
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    if dpop_key:
+        headers["DPoP"] = dpop_key.generate_proof("POST", token_url)
+
+    async with aiohttp.ClientSession(trust_env=True) as client_session:
+        async with client_session.post(
+            token_url, data=urllib.parse.urlencode(payload), headers=headers
+        ) as resp:
+            if resp.status != 200:
+                try:
+                    error_response = await resp.json()
+                except Exception:
+                    error_response = {}
+                error = error_response.get("error", f"HTTP {resp.status}")
+                raise OnlineLicensingError(f"Token exchange failed: {error}")
+
+            return await resp.json()
+
+
+async def refresh_oauth_token(refresh_url, client_id, refresh_token, dpop_key=None):
+    """Refresh an OAuth access token using the refresh token.
+
+    Device flow uses SAT-based refresh tokens - no correlation_id is needed.
+    IMPORTANT: SAT refresh tokens rotate on every refresh. The response contains
+    a NEW refresh_token that MUST be stored, replacing the old one.
+
+    Args:
+        refresh_url (str): The OAuth refresh endpoint URL.
+        client_id (str): The OAuth client id.
+        refresh_token (str): The current refresh token.
+        dpop_key (DPoPKey, optional): MUST be the same key used during device
+            authorization.
+
+    Returns:
+        dict: New token response containing a new access_token AND a new
+            refresh_token (rotated).
+    """
+    payload = {
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "client_id": client_id,
+    }
+
+    headers = {"Content-Type": "application/json"}
+    if dpop_key:
+        headers["DPoP"] = dpop_key.generate_proof("POST", refresh_url)
+
+    async with aiohttp.ClientSession(trust_env=True) as client_session:
+        async with client_session.post(
+            refresh_url, json=payload, headers=headers
+        ) as resp:
+            if resp.status != 200:
+                try:
+                    error_response = await resp.json()
+                except Exception:
+                    error_response = {}
+                error = error_response.get("error", f"HTTP {resp.status}")
+                raise OnlineLicensingError(f"Token refresh failed: {error}")
+            return await resp.json()
 
 
 def range_matlab_connector_ports():

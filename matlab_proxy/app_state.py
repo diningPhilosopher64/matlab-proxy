@@ -18,11 +18,13 @@ from matlab_proxy.constants import (
     CONNECTOR_SECUREPORT_FILENAME,
     IS_CONCURRENCY_CHECK_ENABLED,
     MATLAB_LOGS_FILE_NAME,
+    OAUTH_REFRESH_TOKEN_LIFESPAN_SECONDS,
     USER_CODE_OUTPUT_FILE_NAME,
     ExitReason,
 )
 from matlab_proxy.settings import get_process_startup_timeout
 from matlab_proxy.util import mw, mwi, system, windows
+from matlab_proxy.util.dpop import DPoPKey
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi import token_auth
 from matlab_proxy.util.mwi.exceptions import (
@@ -40,6 +42,33 @@ from matlab_proxy.util.mwi.exceptions import (
 )
 
 logger = mwi.logger.get()
+
+
+def _parse_expiry(expiry: str) -> datetime:
+    """Parse an OAuth/MHLM expiry timestamp into a timezone-aware datetime.
+
+    The OAuth server is not guaranteed to include fractional seconds or to use a
+    colon in the UTC offset, so we try a few ISO-8601 variants rather than a
+    single rigid format. Python 3.11+ ``fromisoformat`` handles most of these,
+    with explicit ``strptime`` fallbacks for older interpreters.
+    """
+    # datetime.fromisoformat is the most forgiving on 3.11+ (accepts optional
+    # fractional seconds and both +HH:MM / +HHMM offsets, plus a trailing 'Z').
+    try:
+        return datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+    except ValueError:
+        pass
+
+    for fmt in (
+        "%Y-%m-%dT%H:%M:%S.%f%z",
+        "%Y-%m-%dT%H:%M:%S%z",
+    ):
+        try:
+            return datetime.strptime(expiry, fmt)
+        except ValueError:
+            continue
+
+    raise ValueError(f"Unrecognized expiry timestamp format: {expiry!r}")
 
 
 def _get_server_urls(server_url: str, mwi_auth_token_str: str) -> list[str]:
@@ -310,14 +339,23 @@ class AppState:
                     # Load can throw if the file is empty or expected fields in the json object are missing.
                     cached_data = json.loads(f.read())
                     licensing = cached_data["licensing"]
-                    matlab = cached_data["matlab"]
 
-                    # If Matlab version could not be determined on startup and 'version' is available in
-                    # cached config, update it.
-                    if not self.settings["matlab_version"]:
-                        self.settings["matlab_version"] = matlab["version"]
+                    # OAuth uses a multi-client structure (no top-level "matlab"
+                    # key); MATLAB version lives inside each client entry. For all
+                    # other licensing types, update matlab_version from the cache
+                    # if it could not be determined on startup.
+                    if (
+                        licensing["type"] != "oauth"
+                        and not self.settings["matlab_version"]
+                    ):
+                        self.settings["matlab_version"] = cached_data["matlab"][
+                            "version"
+                        ]
 
-                    if licensing["type"] == "nlm":
+                    if licensing["type"] == "oauth":
+                        await self.__init_oauth_licensing_from_cache(licensing)
+
+                    elif licensing["type"] == "nlm":
                         # Note: Only NLM settings entered in browser were cached.
                         self.licensing = {
                             "type": "nlm",
@@ -326,6 +364,12 @@ class AppState:
                         logger.debug("Using cached NLM licensing to start MATLAB")
 
                     elif licensing["type"] == "mhlm":
+                        # Cached MHLM licensing is always preferred, even when this
+                        # integration also supports the OAuth device code flow
+                        # (oauth_client_id present). MHLM tokens remain valid
+                        # licensing; we do not discard them just because OAuth is
+                        # available. The OAuth device code tab is only surfaced when
+                        # there is no usable cached licensing.
                         self.licensing = {
                             "type": "mhlm",
                             "identity_token": licensing["identity_token"],
@@ -341,8 +385,8 @@ class AppState:
                             "entitlement_id": licensing.get("entitlement_id"),
                         }
 
-                        expiry_window = datetime.strptime(
-                            self.licensing["expiry"], "%Y-%m-%dT%H:%M:%S.%f%z"
+                        expiry_window = _parse_expiry(
+                            self.licensing["expiry"]
                         ) - timedelta(hours=1)
 
                         if expiry_window > datetime.now(timezone.utc):
@@ -363,6 +407,156 @@ class AppState:
                         self.__reset_and_delete_cached_config()
                 except Exception:
                     self.__reset_and_delete_cached_config()
+
+    async def __init_oauth_licensing_from_cache(self, licensing):
+        """Restore OAuth licensing for the current client_id from cached config.
+
+        Searches the cached ``clients`` array for an entry matching this
+        integration's ``oauth_client_id``. If found, loads the DPoP key and always
+        refreshes to obtain a fresh access token (the access token is never
+        persisted), unless the durable refresh token is missing or has already
+        passed its computed ``refresh_token_expiry``, in which case the entry is
+        dropped and a fresh sign-in is required. If not found (or if this config
+        has no oauth_client_id), no cached token applies and the user must sign in.
+
+        Args:
+            licensing (dict): The cached "licensing" object (type == "oauth").
+        """
+        client_id = self.settings.get("oauth_client_id")
+
+        # OAuth data was written by a config that had an oauth_client_id. If the
+        # current config has none, ignore the cached data and fall back.
+        if not client_id:
+            logger.debug(
+                "Cached OAuth licensing present but no oauth_client_id in config. "
+                "Ignoring cached data."
+            )
+            self.licensing = None
+            return
+
+        clients = licensing.get("clients", [])
+        entry = next((c for c in clients if c.get("client_id") == client_id), None)
+
+        if entry is None:
+            logger.debug(
+                f"No cached OAuth token for client_id '{client_id}'. Sign-in required."
+            )
+            self.licensing = None
+            return
+
+        # Update MATLAB version from this client's cached entry if needed.
+        if not self.settings["matlab_version"]:
+            self.settings["matlab_version"] = entry.get("matlab", {}).get("version")
+
+        dpop_key = (
+            DPoPKey.from_dict(entry["dpop_key"]) if entry.get("dpop_key") else None
+        )
+        self.settings["dpop_key"] = dpop_key
+
+        # Rebuild in-memory licensing from the cached entry. The access token was
+        # NOT persisted (it is short-lived), so it is absent here and re-derived by
+        # the refresh below - mirroring how MHLM re-fetches an access token from
+        # the cached identity_token at startup.
+        self.licensing = {
+            "type": "oauth",
+            "client_id": client_id,
+            "source_id": client_id,
+            "refresh_token_expiry": entry.get("refresh_token_expiry"),
+            "email_addr": entry.get("email_addr"),
+            "first_name": entry.get("first_name"),
+            "last_name": entry.get("last_name"),
+            "display_name": entry.get("display_name"),
+            "user_id": entry.get("user_id"),
+            "token": None,
+            "refresh_token": entry.get("refresh_token"),
+            "dpop_key": dpop_key,
+            "entitlements": entry.get("entitlements", []),
+            "entitlement_id": entry.get("entitlement_id"),
+        }
+
+        refresh_token = self.licensing.get("refresh_token")
+        refresh_token_expiry = self.licensing.get("refresh_token_expiry")
+
+        # No durable credential to work with: require a fresh sign-in.
+        if not refresh_token:
+            logger.debug("Cached OAuth entry has no refresh token; sign-in required.")
+            self.__remove_oauth_client_entry(client_id)
+            self.licensing = None
+            return
+
+        # Predictive gate: if the refresh token has (per the server-configured
+        # lifespan we mirrored at persist time) already expired, skip a doomed
+        # refresh and require sign-in. This is only an optimization/UX shortcut -
+        # the refresh call below remains the ground truth for token validity.
+        if refresh_token_expiry is not None:
+            try:
+                if _parse_expiry(refresh_token_expiry) <= datetime.now(timezone.utc):
+                    logger.debug(
+                        "Cached OAuth refresh token expired; sign-in required."
+                    )
+                    self.__remove_oauth_client_entry(client_id)
+                    self.licensing = None
+                    return
+            except ValueError:
+                # Unparseable stored value: fall through and let the refresh decide.
+                logger.debug(
+                    "Could not parse cached refresh_token_expiry; attempting refresh."
+                )
+
+        # Always refresh on restore: there is no cached access token to reuse, so
+        # we exchange the (still-valid) refresh token for a fresh access/refresh
+        # pair. A successful refresh also rotates the SAT and re-persists the new
+        # refresh token and a fresh refresh_token_expiry.
+        try:
+            logger.debug("Refreshing cached OAuth token to start MATLAB...")
+            await self.__refresh_oauth_licensing()
+        except Exception as e:
+            # Catch broadly (network errors raise aiohttp.ClientError, not just
+            # OnlineLicensingError). Remove ONLY this client's entry so other
+            # integrations' cached tokens in the shared config are preserved -
+            # letting this propagate would hit init_licensing's outer handler
+            # and delete the entire cache file.
+            logger.debug(f"OAuth token refresh failed ({e}); removing client entry.")
+            self.__remove_oauth_client_entry(client_id)
+            self.licensing = None
+
+    def remove_oauth_client_entry(self, client_id):
+        """Public wrapper to remove a single client's cached OAuth entry."""
+        self.__remove_oauth_client_entry(client_id)
+
+    def __remove_oauth_client_entry(self, client_id):
+        """Remove a single client's entry from the cached OAuth ``clients`` array.
+
+        Deletes the whole cached config file if no client entries remain.
+        """
+        cached_config_file = self.__get_cached_config_file()
+        if not cached_config_file.exists():
+            return
+
+        try:
+            with open(cached_config_file, "r") as f:
+                existing = json.loads(f.read())
+        except Exception:
+            self.__delete_cached_config_file()
+            return
+
+        if existing.get("licensing", {}).get("type") != "oauth":
+            return
+
+        clients = [
+            c
+            for c in existing["licensing"].get("clients", [])
+            if c.get("client_id") != client_id
+        ]
+
+        if not clients:
+            # No clients left, remove the entire cached config file.
+            self.__delete_cached_config_file()
+            return
+
+        existing["licensing"]["clients"] = clients
+        with open(cached_config_file, "w") as f:
+            f.write(json.dumps(existing))
 
     async def __update_matlab_state_based_on_connector_state(self):
         """Updates MATLAB state based on the Embedded Connector state.
@@ -729,6 +923,118 @@ class AppState:
             self.error = e
             log_error(logger, e)
 
+    async def set_licensing_oauth_with_token_response(self, token_response):
+        """Set licensing from an OAuth token response (used by the device code flow)."""
+        await self._set_licensing_from_token_response(
+            token_response, self.settings["oauth_client_id"]
+        )
+
+    async def _set_licensing_from_token_response(self, token_response, client_id):
+        """Set licensing from an OAuth token response.
+
+        The token response from the MathWorks OAuth server contains a nested
+        ``mwa_token`` object with the actual access token and user information.
+        Fetches entitlements and auto-selects when only one is available.
+
+        Args:
+            token_response (dict): Token response from the OAuth server.
+            client_id (str): The OAuth client id the tokens are bound to.
+        """
+        mwa_token = token_response.get("mwa_token", token_response)
+        reference_detail = mwa_token.get("referenceDetail", {})
+        access_token = mwa_token.get(
+            "accessTokenString", token_response.get("access_token")
+        )
+
+        # Preserve the DPoP key already associated with this session (it must be
+        # reused for refresh) so it survives a refresh that calls back into here.
+        dpop_key = self.settings.get("dpop_key")
+
+        # Preserve a previously chosen entitlement across a refresh. This method
+        # rebuilds self.licensing from scratch, and a refresh on restore would
+        # otherwise drop a multi-entitlement user's selection (auto-select below
+        # only fires when there is exactly one entitlement).
+        previous_entitlement_id = (
+            self.licensing.get("entitlement_id") if self.licensing else None
+        )
+
+        # The refresh token is the durable credential; compute its expiry from the
+        # server-configured lifespan (the server does not return it - see
+        # OAUTH_REFRESH_TOKEN_LIFESPAN_SECONDS). This is what init_licensing() uses
+        # on a later startup to decide whether the cached refresh token is still
+        # usable. The access token's own expiry (mwa_token.expirationDate) is
+        # short-lived (~24h) and intentionally NOT persisted - it is re-derived by
+        # refreshing at startup, mirroring the MHLM identity-token model.
+        refresh_token_expiry = (
+            datetime.now(timezone.utc)
+            + timedelta(seconds=OAUTH_REFRESH_TOKEN_LIFESPAN_SECONDS)
+        ).isoformat()
+
+        self.licensing = {
+            "type": "oauth",
+            "client_id": client_id,
+            # Access-token expiry (short-lived); kept in-memory for reference only.
+            "expiry": mwa_token.get("expirationDate"),
+            # Refresh-token expiry (durable); persisted and used as the startup gate.
+            "refresh_token_expiry": refresh_token_expiry,
+            "email_addr": reference_detail.get("email"),
+            "first_name": reference_detail.get("firstName"),
+            "last_name": reference_detail.get("lastName"),
+            "display_name": reference_detail.get("displayName"),
+            "user_id": reference_detail.get("userId"),
+            "source_id": client_id,
+            "token": access_token,
+            "refresh_token": token_response.get("refresh_token"),
+            "dpop_key": dpop_key,
+            "entitlements": [],
+            "entitlement_id": None,
+        }
+
+        # Fetch entitlements using the OAuth access token (same MHLM endpoint).
+        matlab_version = self.settings["matlab_version"]
+        entitlements = await mw.fetch_entitlements(
+            self.settings["integ_mhlm_api_endpoint"],
+            access_token,
+            matlab_version,
+        )
+
+        self.licensing["entitlements"] = entitlements
+
+        # Auto-select if only one entitlement is available; otherwise restore the
+        # user's previous selection. This mirrors the MHLM cached path, which keeps
+        # the entitlement_id restored from cache without re-validating that it is
+        # still among the fetched entitlements.
+        if len(entitlements) == 1:
+            self.licensing["entitlement_id"] = entitlements[0]["id"]
+        elif previous_entitlement_id is not None:
+            self.licensing["entitlement_id"] = previous_entitlement_id
+
+        self.persist_config_data()
+
+    async def __refresh_oauth_licensing(self):
+        """Refresh the OAuth access token using the stored refresh token.
+
+        Uses the persisted DPoP key (the OAuth server requires the SAME key that
+        was used during device authorization). SAT refresh tokens rotate, so the
+        response contains a NEW refresh_token that replaces the old one - this is
+        handled by _set_licensing_from_token_response.
+        """
+        refresh_url = f"{self.settings['integ_oauth_endpoint']}/oauth2/v1/oauth/refresh"
+        client_id = self.licensing.get("client_id") or self.settings["oauth_client_id"]
+        dpop_key = self.licensing.get("dpop_key")
+
+        # Ensure the DPoP key is available to _set_licensing_from_token_response.
+        self.settings["dpop_key"] = dpop_key
+
+        token_response = await mw.refresh_oauth_token(
+            refresh_url,
+            client_id,
+            self.licensing["refresh_token"],
+            dpop_key=dpop_key,
+        )
+
+        await self._set_licensing_from_token_response(token_response, client_id)
+
     def unset_licensing(self):
         """Unset the licensing."""
 
@@ -754,6 +1060,17 @@ class AppState:
                     self.licensing.get("identity_token") is not None
                     and self.licensing.get("source_id") is not None
                     and self.licensing.get("expiry") is not None
+                    and self.licensing.get("entitlement_id") is not None
+                ):
+                    return True
+            elif self.licensing.get("type") == "oauth":
+                # Gate on the durable credential (refresh_token), not the access
+                # token or its expiry: the access token is ephemeral and re-derived
+                # at startup, so it may legitimately be absent here. A usable
+                # refresh token plus a chosen entitlement means we are licensed.
+                if (
+                    self.licensing.get("source_id") is not None
+                    and self.licensing.get("refresh_token") is not None
                     and self.licensing.get("entitlement_id") is not None
                 ):
                     return True
@@ -842,6 +1159,9 @@ class AppState:
         if self.licensing is None:
             self.__delete_cached_config_file()
 
+        elif self.licensing["type"] == "oauth":
+            self.__persist_oauth_config_data()
+
         elif self.licensing["type"] in ["mhlm", "nlm", "existing_license"]:
             logger.debug("Saving licensing information...")
             cached_config_file = self.__get_cached_config_file()
@@ -852,6 +1172,60 @@ class AppState:
             }
             with open(cached_config_file, "w") as f:
                 f.write(json.dumps(config))
+
+    def __persist_oauth_config_data(self):
+        """Persist OAuth licensing into the multi-client ``clients`` array.
+
+        The cached config file is shared across integrations, each with its own
+        client_id. This loads any existing config, replaces or appends the entry
+        for the current client_id (serializing the DPoP key), and writes it back.
+        """
+        logger.debug("Saving OAuth licensing information...")
+        cached_config_file = self.__get_cached_config_file()
+        cached_config_file.parent.mkdir(parents=True, exist_ok=True)
+
+        client_id = self.licensing["client_id"]
+        dpop_key = self.licensing.get("dpop_key")
+
+        # NOTE: the access token ("token") and its short-lived expiry ("expiry")
+        # are deliberately NOT persisted. They are ephemeral and re-derived by
+        # refreshing at startup (mirroring the MHLM identity-token model). Only the
+        # durable credential (refresh_token + dpop_key) and its computed
+        # refresh_token_expiry are persisted.
+        client_entry = {
+            "client_id": client_id,
+            "refresh_token_expiry": self.licensing.get("refresh_token_expiry"),
+            "email_addr": self.licensing.get("email_addr"),
+            "first_name": self.licensing.get("first_name"),
+            "last_name": self.licensing.get("last_name"),
+            "display_name": self.licensing.get("display_name"),
+            "user_id": self.licensing.get("user_id"),
+            "refresh_token": self.licensing.get("refresh_token"),
+            "dpop_key": dpop_key.to_dict() if dpop_key else None,
+            "entitlements": self.licensing.get("entitlements", []),
+            "entitlement_id": self.licensing.get("entitlement_id"),
+            "matlab": {"version": self.settings["matlab_version"]},
+        }
+
+        # Load any existing clients array so we don't clobber other integrations'
+        # tokens that share this config file.
+        clients = []
+        if cached_config_file.exists():
+            try:
+                with open(cached_config_file, "r") as f:
+                    existing = json.loads(f.read())
+                if existing.get("licensing", {}).get("type") == "oauth":
+                    clients = existing["licensing"].get("clients", [])
+            except Exception:
+                clients = []
+
+        # Replace the entry for this client_id if present, else append.
+        clients = [c for c in clients if c.get("client_id") != client_id]
+        clients.append(client_entry)
+
+        config = {"licensing": {"type": "oauth", "clients": clients}}
+        with open(cached_config_file, "w") as f:
+            f.write(json.dumps(config))
 
     def create_logs_dir_for_MATLAB(self):
         """Creates the root folder where MATLAB writes the ready file and updates attibutes on self."""
@@ -1060,6 +1434,30 @@ class AppState:
             )
             licensing_env["MLM_WEB_LICENSE"] = "true"
             licensing_env["MLM_WEB_USER_CRED"] = access_token_data["token"]
+            licensing_env["MLM_WEB_ID"] = self.licensing["entitlement_id"]
+            licensing_env["MHLM_CONTEXT"] = (
+                "MATLAB_JAVASCRIPT_DESKTOP"
+                if os.getenv(mwi_env.get_env_name_mhlm_context()) is None
+                else os.getenv(mwi_env.get_env_name_mhlm_context())
+            )
+
+        elif self.licensing["type"] == "oauth":
+            # Refresh the token if it is expired or within 1 hour of expiry.
+            if self.licensing.get("refresh_token") and self.licensing.get("expiry"):
+                try:
+                    expiry_window = _parse_expiry(self.licensing["expiry"]) - timedelta(
+                        hours=1
+                    )
+                    if expiry_window <= datetime.now(timezone.utc):
+                        await self.__refresh_oauth_licensing()
+                except OnlineLicensingError:
+                    self.__reset_and_delete_cached_config()
+                    raise OnlineLicensingError(
+                        "OAuth session expired. Please sign in again."
+                    )
+
+            licensing_env["MLM_WEB_LICENSE"] = "true"
+            licensing_env["MLM_WEB_USER_CRED"] = self.licensing["token"]
             licensing_env["MLM_WEB_ID"] = self.licensing["entitlement_id"]
             licensing_env["MHLM_CONTEXT"] = (
                 "MATLAB_JAVASCRIPT_DESKTOP"

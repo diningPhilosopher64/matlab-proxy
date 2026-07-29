@@ -1,11 +1,14 @@
 # Copyright 2020-2026 The MathWorks, Inc.
 
 import asyncio
+import base64
+import hashlib
 import json
 import mimetypes
 import pkgutil
 import secrets
 import sys
+import time
 
 import aiohttp
 from aiohttp import client_exceptions, web
@@ -17,7 +20,8 @@ import matlab_proxy
 from matlab_proxy import constants, settings, util
 from matlab_proxy.app_state import AppState
 from matlab_proxy.constants import IS_CONCURRENCY_CHECK_ENABLED, ExitReason
-from matlab_proxy.util import mwi
+from matlab_proxy.util import mw, mwi
+from matlab_proxy.util.dpop import DPoPKey
 from matlab_proxy.util.mwi import download, token_auth
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi.exceptions import AppError, InvalidTokenError, LicensingError
@@ -66,6 +70,13 @@ def marshal_licensing_info(licensing_info):
         return {
             "type": "mhlm",
             "emailAddress": licensing_info["email_addr"],
+            "entitlements": licensing_info.get("entitlements", []),
+            "entitlementId": licensing_info.get("entitlement_id", None),
+        }
+    elif licensing_type == "oauth":
+        return {
+            "type": "oauth",
+            "emailAddress": licensing_info.get("email_addr"),
             "entitlements": licensing_info.get("entitlements", []),
             "entitlementId": licensing_info.get("entitlement_id", None),
         }
@@ -216,6 +227,11 @@ async def get_env_config(req):
     }
 
     config["browserTitle"] = state.settings["browser_title"]
+
+    # Tells the frontend which online sign-in UI to render: the OAuth device code
+    # flow ("device_code") or the legacy MHLM iframe ("mhlm").
+    # The frontend will fall back to "mhlm" if the server does not support device code flow.
+    config["online_auth_method"] = state.settings.get("online_auth_method", "mhlm")
 
     # Send timeout duration for the idle timer as part of the response
     config["idleTimeoutDuration"] = state.settings["mwi_idle_timeout"]
@@ -385,7 +401,7 @@ async def update_entitlement(req):
     lic_type = data.get("type")
 
     # Set the entitlement id only if we are not already licensed
-    if lic_type == "mhlm" and not state.is_licensed():
+    if lic_type in ("mhlm", "oauth") and not state.is_licensed():
         entitlement_id = data.get("entitlement_id")
         logger.debug(f"Received type: {lic_type}, entitlement_id: {entitlement_id}")
         await state.update_user_selected_entitlement_info(entitlement_id)
@@ -398,6 +414,227 @@ async def __start_matlab_if_licensed(state):
     # Start MATLAB if licensing is complete
     if state.is_licensed() and not isinstance(state.error, LicensingError):
         await state.start_matlab(restart_matlab=True)
+
+
+def _clear_device_state(state):
+    """Clear all transient device code flow state after a terminal outcome.
+
+    This includes the PKCE verifier/challenge, the DPoP keypair, and the session
+    id - not just the polling bookkeeping - so no auth secrets linger in memory
+    once the flow has succeeded, been denied, expired, or errored.
+    """
+    for key in (
+        "device_code",
+        "device_auth_cached_status",
+        "device_auth_last_check",
+        "code_verifier",
+        "code_challenge",
+        "dpop_key",
+        "oauth_session_id",
+        "device_user_code",
+        "device_verification_uri",
+        "device_verification_uri_complete",
+        "device_code_expiry",
+    ):
+        state.settings[key] = None
+
+
+@token_auth.authenticate_access_decorator
+async def device_authorize(req):
+    """Initiate the OAuth 2.0 Device Code flow.
+
+    Returns user_code, verification_uri, and polling info to the frontend.
+    The device_code is kept server-side (secret) and never sent to the frontend.
+    """
+    state = req.app["state"]
+
+    # Generate PKCE parameters (the code_verifier is used during token exchange).
+    code_verifier = secrets.token_urlsafe(32)
+    code_challenge_bytes = hashlib.sha256(code_verifier.encode()).digest()
+    code_challenge = base64.urlsafe_b64encode(code_challenge_bytes).decode().rstrip("=")
+
+    state.settings["code_verifier"] = code_verifier
+    state.settings["code_challenge"] = code_challenge
+
+    # Generate a fresh DPoP keypair for this session. The SAME key must be reused
+    # for token exchange and all subsequent refreshes.
+    dpop_key = DPoPKey()
+    state.settings["dpop_key"] = dpop_key
+
+    source_id = state.settings.get("oauth_session_id") or secrets.token_hex(8)
+    state.settings["oauth_session_id"] = source_id
+
+    try:
+        device_response = await mw.device_authorize(
+            state.settings["integ_oauth_endpoint"],
+            state.settings["oauth_client_id"],
+            code_challenge,
+            source_id,
+            dpop_key=dpop_key,
+        )
+
+        # Store the device_code server-side (NEVER sent to the frontend).
+        state.settings["device_code"] = device_response["device_code"]
+        state.settings["device_code_interval"] = device_response.get("interval", 5)
+        state.settings["device_auth_last_check"] = None
+        state.settings["device_auth_cached_status"] = None
+
+        # Persist the user-facing fields and an absolute deadline so poll_device_token
+        # can re-serve them on every pending poll. This lets the frontend rehydrate the
+        # same code/URL/countdown after a page refresh instead of starting a new flow.
+        expires_in = device_response.get("expires_in", constants.OAUTH_DEVICE_CODE_LIFESPAN_SECONDS)
+        state.settings["device_user_code"] = device_response["user_code"]
+        state.settings["device_verification_uri"] = device_response["verification_uri"]
+        state.settings["device_verification_uri_complete"] = device_response.get(
+            "verification_uri_complete"
+        )
+        state.settings["device_code_expiry"] = time.time() + expires_in
+
+        # Return only user-facing info.
+        return web.json_response(
+            {
+                "user_code": device_response["user_code"],
+                "verification_uri": device_response["verification_uri"],
+                "verification_uri_complete": device_response.get(
+                    "verification_uri_complete"
+                ),
+                "expires_in": expires_in,
+                "interval": device_response.get("interval", 5),
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Device authorization error: {e}")
+        return web.json_response(
+            {"error": f"Device authorization error: {str(e)}"},
+            status=502,
+        )
+
+
+@token_auth.authenticate_access_decorator
+async def poll_device_token(req):
+    """Poll for OAuth tokens using the device code flow with smart caching.
+
+    The frontend polls every 1 second. The backend only hits the OAuth server
+    every 'interval' seconds (as specified by the OAuth server).
+    """
+    state = req.app["state"]
+
+    device_code = state.settings.get("device_code")
+    code_verifier = state.settings.get("code_verifier")
+
+    if not device_code or not code_verifier:
+        # No flow in progress (fresh load, or state was cleared after a terminal
+        # outcome). This is not an error - it is the normal pre-Start state, so the
+        # frontend renders the "Start" screen.
+        return web.json_response({"status": "idle"})
+
+    # A flow is in progress but its code has already expired: clear the stale state
+    # and report expiry so the frontend can offer a restart.
+    expiry = state.settings.get("device_code_expiry")
+    if expiry is not None and time.time() >= expiry:
+        _clear_device_state(state)
+        return web.json_response(
+            {"status": "error", "error": "Device code expired"},
+            status=410,
+        )
+
+    def _pending_response():
+        """Build a pending response that echoes the user-facing fields, so the
+        frontend can rehydrate the same code/URL/countdown after a page refresh."""
+        payload = {
+            "status": "pending",
+            "message": "Waiting for user to authorize",
+            "user_code": state.settings.get("device_user_code"),
+            "verification_uri": state.settings.get("device_verification_uri"),
+            "verification_uri_complete": state.settings.get(
+                "device_verification_uri_complete"
+            ),
+        }
+        if expiry is not None:
+            payload["expires_in"] = max(0, int(expiry - time.time()))
+        return web.json_response(payload)
+
+    # Smart caching: only poll the OAuth server every `interval` seconds. On
+    # intermediate frontend polls, return the cached PENDING status.
+    current_time = time.time()
+    last_check = state.settings.get("device_auth_last_check") or 0
+    interval = state.settings.get("device_code_interval") or 5
+    cached_status = state.settings.get("device_auth_cached_status")
+
+    if (current_time - last_check) < interval and cached_status == "PENDING":
+        return _pending_response()
+
+    try:
+        oauth_host = state.settings["integ_oauth_endpoint"]
+        client_id = state.settings["oauth_client_id"]
+
+        auth_status = await mw.check_device_auth_status(
+            oauth_host, device_code, client_id
+        )
+        status_value = auth_status.get("status", "PENDING")
+
+        state.settings["device_auth_last_check"] = current_time
+        state.settings["device_auth_cached_status"] = status_value
+
+        if status_value == "PENDING":
+            return _pending_response()
+
+        elif status_value == "DENIED":
+            _clear_device_state(state)
+            return web.json_response(
+                {"status": "error", "error": "User denied authorization"},
+                status=403,
+            )
+
+        elif status_value == "EXPIRED":
+            _clear_device_state(state)
+            return web.json_response(
+                {"status": "error", "error": "Device code expired"},
+                status=410,
+            )
+
+        elif status_value in ("AUTHORIZED", "TOKEN_ISSUED"):
+            # User authorized! Exchange the device_code for tokens.
+            token_url = f"{oauth_host}/oauth2/v1/oauth/token"
+            dpop_key = state.settings.get("dpop_key")
+
+            token_response = await mw.exchange_device_token(
+                token_url, device_code, client_id, code_verifier, dpop_key=dpop_key
+            )
+
+            await state.set_licensing_oauth_with_token_response(token_response)
+            _clear_device_state(state)
+
+            await __start_matlab_if_licensed(state)
+
+            return web.json_response(
+                {
+                    "status": "success",
+                    "licensing": marshal_licensing_info(state.licensing),
+                }
+            )
+
+        else:
+            return _pending_response()
+
+    except Exception as e:
+        # If we were in an AUTHORIZED state and the exchange failed, the flow must
+        # be restarted. For transient errors during the status check, keep polling.
+        if state.settings.get("device_auth_cached_status") in (
+            "AUTHORIZED",
+            "TOKEN_ISSUED",
+        ):
+            _clear_device_state(state)
+            return web.json_response(
+                {
+                    "status": "error",
+                    "error": f"Token exchange failed: {str(e)}. Please try again.",
+                },
+                status=500,
+            )
+        logger.trace(f"Transient error during device token poll: {e}")
+        return _pending_response()
 
 
 @token_auth.authenticate_access_decorator
@@ -416,10 +653,17 @@ async def licensing_info_delete(req):
 
     # When removing licensing data, if matlab version was fetched from the user, remove it
     # on the server side to have a complete 'reset'.
-    if state.licensing["type"] == "mhlm" and not state.settings.get(
+    if state.licensing["type"] in ("mhlm", "oauth") and not state.settings.get(
         "matlab_version_determined_on_startup"
     ):
         state.settings["matlab_version"] = None
+
+    # For OAuth, remove only the current client's entry from the shared cache
+    # (other integrations' tokens must be preserved), then clear in-memory state.
+    if state.licensing["type"] == "oauth":
+        state.remove_oauth_client_entry(state.licensing.get("client_id"))
+        state.unset_licensing()
+        return create_status_response(req.app)
 
     # Unset licensing information
     state.unset_licensing()
@@ -992,6 +1236,14 @@ def create_app(config_name=matlab_proxy.get_default_config_name()):
     app.router.add_route("DELETE", f"{base_url}/stop_matlab", stop_matlab)
     app.router.add_route("PUT", f"{base_url}/set_licensing_info", set_licensing_info)
     app.router.add_route("PUT", f"{base_url}/update_entitlement", update_entitlement)
+
+    # Register the OAuth device code flow routes only when this integration has
+    # opted in by providing an oauth_client_id. Otherwise the legacy MHLM iframe
+    # sign-in is used and these routes are not available.
+    if app["settings"].get("online_auth_method") == "device_code":
+        app.router.add_route("POST", f"{base_url}/device_authorize", device_authorize)
+        app.router.add_route("GET", f"{base_url}/poll_device_token", poll_device_token)
+
     app.router.add_route(
         "DELETE", f"{base_url}/set_licensing_info", licensing_info_delete
     )

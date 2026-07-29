@@ -39,6 +39,19 @@ MWI_AUTH_TOKEN_NAME_FOR_HTTP = "mwi-auth-token"
 # Interval in seconds to wait before querying the status of MATLAB.
 CHECK_MATLAB_STATUS_INTERVAL_SECONDS: Final[int] = 1
 
+# Refresh-token lifetime (in seconds) configured on the MathWorks OAuth server for
+# our device-flow clients (the default is 7 days). The server does NOT return this value in any token or refresh
+# response, so we mirror it here to compute and persist a refresh-token expiry -
+# the durable-credential expiry that lets init_licensing() decide, on a later
+# startup, whether the cached refresh token is still usable before attempting a
+# refresh. This MUST be kept in sync with the server-side registration for this
+# client_id; if the OAuth team changes refreshTokenLifeSpan, update this constant.
+OAUTH_REFRESH_TOKEN_LIFESPAN_SECONDS: Final[int] = 604800  # 7 days
+
+# Device code lifetime (in seconds) configured on the MathWorks OAuth server for
+# our device-flow clients (the default is 10 minutes).
+OAUTH_DEVICE_CODE_LIFESPAN_SECONDS: Final[int] = 600  # 10 minutes
+
 
 class ExitReason(IntEnum):
     """Exit reasons for matlab-proxy with distinct exit codes.

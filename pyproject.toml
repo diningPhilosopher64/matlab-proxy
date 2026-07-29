@@ -37,6 +37,7 @@ classifiers = [
 dependencies = [
     "aiohttp_session[secure]",
     "aiohttp>=3.7.4",
+    "cryptography>=3.0",
     "psutil",
     "requests",
     "rich",

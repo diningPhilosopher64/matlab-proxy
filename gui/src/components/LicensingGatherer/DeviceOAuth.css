@@ -1,0 +1,100 @@
+/* Copyright 2026 The MathWorks, Inc. */
+
+#DeviceOAuth h3 {
+    margin: 0 0 12px 0;
+}
+
+/* The gray "Device Authorization" panel that groups the two sign-in steps and
+   the status footer. (A panel, not a Web Card: this is a single content
+   grouping, which Parula reserves cards for browse-workflow grids.) */
+#DeviceOAuth .device-oauth-panel {
+    background: #f5f5f5;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    padding: 20px;
+}
+
+#DeviceOAuth .device-oauth-step {
+    margin: 0 0 8px 0;
+}
+
+/* A step row: a full-width white box on the left and its action button on the
+   right, vertically centered against the box. */
+#DeviceOAuth .device-oauth-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+#DeviceOAuth .device-oauth-url-box {
+    flex: 1;
+    min-width: 0;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 12px 14px;
+    word-break: break-all;
+}
+
+/* The user-code token is a <code> element (semantic: literal computer input the
+   user must type). It is a flex item in the row and also centers its own
+   content, so it renders identically to the surrounding boxes. */
+#DeviceOAuth .device-oauth-code-box {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    background: #fff;
+    border: 2px solid #0076a8;
+    border-radius: 4px;
+    padding: 16px;
+    font-family: monospace;
+    font-size: 28px;
+    font-weight: bold;
+    letter-spacing: 10px;
+    /* Offset the trailing letter-spacing so the code stays visually centered. */
+    text-indent: 10px;
+}
+
+#DeviceOAuth .device-oauth-action {
+    min-width: 72px;
+    justify-content: center;
+    text-align: center;
+}
+
+/* "Expires in ..." on the left, polling status on the right. */
+#DeviceOAuth .device-oauth-footer {
+    display: flex;
+    justify-content: space-between;
+    color: #6c6c6c;
+    font-size: 13px;
+}
+
+/* Status text paired with an indeterminate spinner: authorization is an
+   indeterminate wait, so show an animated affordance alongside the text. */
+#DeviceOAuth .device-oauth-checking {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#DeviceOAuth .device-oauth-spinner {
+    --spinner-size: 12px;
+    width: var(--spinner-size);
+    height: var(--spinner-size);
+    border: 2px solid rgba(0, 0, 0, 0.15);
+    border-top: 2px solid #0076a8;
+    border-radius: 50%;
+    animation: device-oauth-spin 1s linear infinite;
+}
+
+@keyframes device-oauth-spin {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+#DeviceOAuth .device-oauth-waiting {
+    margin-top: 15px;
+    color: #6c6c6c;
+}

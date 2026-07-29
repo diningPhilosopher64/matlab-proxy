@@ -1,8 +1,9 @@
 // Copyright 2020-2025 The MathWorks, Inc.
 
 import React, { useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { fetchUpdateLicensing } from '../../actionCreators';
+import { selectLicensingInfo } from '../../selectors';
 import PropTypes from 'prop-types';
 export const defaultLicenseUnavailableMsg = 'License description unavailable';
 
@@ -17,6 +18,7 @@ export function filterAndFormatEntitlements (entitlements) {
 
 function EntitlementSelector ({ options }) {
     const dispatch = useDispatch();
+    const licensingInfo = useSelector(selectLicensingInfo);
     const filteredOptions = filterAndFormatEntitlements(options);
     const [selectedEntitlement, setSelected] = useState(filteredOptions[0].value);
 
@@ -24,7 +26,9 @@ function EntitlementSelector ({ options }) {
         event.preventDefault();
         dispatch(
             fetchUpdateLicensing({
-                type: 'mhlm',
+                // Both 'mhlm' and 'oauth' share this selector; the backend's
+                // update_entitlement endpoint requires the matching type.
+                type: licensingInfo?.type ?? 'mhlm',
                 entitlement_id: selectedEntitlement
             })
         );
