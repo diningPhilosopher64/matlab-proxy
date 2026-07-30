@@ -170,8 +170,6 @@ def get_oauth_settings(env_config, ws_env_suffix):
         "online_auth_method": "device_code" if oauth_client_id else "mhlm",
         # MathWorks OAuth server base URL (signin host).
         "integ_oauth_endpoint": f"https://signin{ws_env_suffix}.mathworks.com",
-        # MHLM entitlement endpoint used to fetch entitlements for an OAuth token.
-        "integ_mhlm_api_endpoint": f"https://licensing{ws_env_suffix}.mathworks.com/mls/service/v1/entitlement/list",
         # Transient per-session fields populated during an active device flow.
         "code_verifier": None,
         "code_challenge": None,

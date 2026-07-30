@@ -60,7 +60,14 @@ describe('selectors', () => {
         selectFetchStatusPeriod,
         selectLicensingProvided,
         selectLicensingIsMhlm,
+        selectLicensingIsOauth,
         selectLicensingMhlmUsername,
+        selectOnlineAuthMethod,
+        selectLicensingMhlmHasEntitlements,
+        selectLicensingOauthHasEntitlements,
+        selectLicensingUsesEntitlements,
+        selectLicensingHasEntitlements,
+        selectIsEntitled,
         selectMatlabPending,
         selectOverlayVisible,
         selectInformationDetails,
@@ -315,6 +322,121 @@ describe('selectors', () => {
             modifiedState = _.cloneDeep(state);
             modifiedState.serverStatus.licensingInfo.type = 'NLM';
             expect(selectLicensingMhlmUsername(modifiedState)).toBe('');
+        });
+
+        test('selectLicensingIsOauth should return true if licensing is of type oauth', () => {
+            modifiedState = _.cloneDeep(state);
+            modifiedState.serverStatus.licensingInfo.type = 'oauth';
+            expect(selectLicensingIsOauth(modifiedState)).toBe(true);
+        });
+
+        test('selectLicensingIsOauth should return false if licensing is not of type oauth', () => {
+            // Default state is of type mhlm
+            expect(selectLicensingIsOauth(state)).toBe(false);
+
+            modifiedState = _.cloneDeep(state);
+            delete modifiedState.serverStatus.licensingInfo.type;
+            expect(selectLicensingIsOauth(modifiedState)).toBe(false);
+        });
+
+        test('selectOnlineAuthMethod should return the online_auth_method from envConfig', () => {
+            modifiedState = _.cloneDeep(state);
+            modifiedState.envConfig.online_auth_method = 'device_code';
+            expect(selectOnlineAuthMethod(modifiedState)).toBe('device_code');
+        });
+
+        test('selectOnlineAuthMethod should default to mhlm when online_auth_method is not provided', () => {
+            // Default state's envConfig has no online_auth_method
+            expect(selectOnlineAuthMethod(state)).toBe('mhlm');
+        });
+
+        test('selectLicensingMhlmHasEntitlements should return true if type is mhlm and entitlements is not empty', () => {
+            // Default state is of type mhlm with two entitlements
+            expect(selectLicensingMhlmHasEntitlements(state)).toBe(true);
+        });
+
+        test('selectLicensingMhlmHasEntitlements should return false if type is mhlm but entitlements is empty', () => {
+            modifiedState = _.cloneDeep(state);
+            modifiedState.serverStatus.licensingInfo.entitlements = [];
+            expect(selectLicensingMhlmHasEntitlements(modifiedState)).toBe(false);
+        });
+
+        test('selectLicensingMhlmHasEntitlements should return false if type is not mhlm', () => {
+            modifiedState = _.cloneDeep(state);
+            modifiedState.serverStatus.licensingInfo.type = 'oauth';
+            expect(selectLicensingMhlmHasEntitlements(modifiedState)).toBe(false);
+        });
+
+        test('selectLicensingOauthHasEntitlements should return true if type is oauth and entitlements is not empty', () => {
+            modifiedState = _.cloneDeep(state);
+            modifiedState.serverStatus.licensingInfo.type = 'oauth';
+            expect(selectLicensingOauthHasEntitlements(modifiedState)).toBe(true);
+        });
+
+        test('selectLicensingOauthHasEntitlements should return false if type is oauth but entitlements is empty', () => {
+            modifiedState = _.cloneDeep(state);
+            modifiedState.serverStatus.licensingInfo.type = 'oauth';
+            modifiedState.serverStatus.licensingInfo.entitlements = [];
+            expect(selectLicensingOauthHasEntitlements(modifiedState)).toBe(false);
+        });
+
+        test('selectLicensingOauthHasEntitlements should return false if type is not oauth', () => {
+            // Default state is of type mhlm
+            expect(selectLicensingOauthHasEntitlements(state)).toBe(false);
+        });
+
+        test('selectLicensingUsesEntitlements should return true for both mhlm and oauth licensing types', () => {
+            // Default state is of type mhlm
+            expect(selectLicensingUsesEntitlements(state)).toBe(true);
+
+            modifiedState = _.cloneDeep(state);
+            modifiedState.serverStatus.licensingInfo.type = 'oauth';
+            expect(selectLicensingUsesEntitlements(modifiedState)).toBe(true);
+        });
+
+        test('selectLicensingUsesEntitlements should return false for licensing types other than mhlm and oauth', () => {
+            modifiedState = _.cloneDeep(state);
+            modifiedState.serverStatus.licensingInfo.type = 'nlm';
+            expect(selectLicensingUsesEntitlements(modifiedState)).toBe(false);
+
+            modifiedState = _.cloneDeep(state);
+            modifiedState.serverStatus.licensingInfo.type = 'existing_license';
+            expect(selectLicensingUsesEntitlements(modifiedState)).toBe(false);
+        });
+
+        test('selectLicensingHasEntitlements should return true when mhlm licensing has entitlements', () => {
+            // Default state is of type mhlm with two entitlements
+            expect(selectLicensingHasEntitlements(state)).toBe(true);
+        });
+
+        test('selectLicensingHasEntitlements should return true when oauth licensing has entitlements', () => {
+            modifiedState = _.cloneDeep(state);
+            modifiedState.serverStatus.licensingInfo.type = 'oauth';
+            expect(selectLicensingHasEntitlements(modifiedState)).toBe(true);
+        });
+
+        test('selectLicensingHasEntitlements should return false when the entitlement list is empty', () => {
+            modifiedState = _.cloneDeep(state);
+            modifiedState.serverStatus.licensingInfo.entitlements = [];
+            expect(selectLicensingHasEntitlements(modifiedState)).toBe(false);
+        });
+
+        test('selectIsEntitled should be truthy when licensing has entitlements and an entitlementId is set', () => {
+            modifiedState = _.cloneDeep(state);
+            modifiedState.serverStatus.licensingInfo.entitlementId = modifiedState.serverStatus.licensingInfo.entitlements[0].id;
+            expect(selectIsEntitled(modifiedState)).toBeTruthy();
+        });
+
+        test('selectIsEntitled should return false when no entitlementId is set', () => {
+            // Default state has entitlementId set to null
+            expect(selectIsEntitled(state)).toBeFalsy();
+        });
+
+        test('selectIsEntitled should be truthy for oauth licensing with entitlements and an entitlementId set', () => {
+            modifiedState = _.cloneDeep(state);
+            modifiedState.serverStatus.licensingInfo.type = 'oauth';
+            modifiedState.serverStatus.licensingInfo.entitlementId = modifiedState.serverStatus.licensingInfo.entitlements[0].id;
+            expect(selectIsEntitled(modifiedState)).toBeTruthy();
         });
 
         test('selectMatlabPending should true if matlabStatus is starting, false otherwise ', () => {

@@ -116,6 +116,40 @@ describe('Controls Component', () => {
         mockFetchServerStatus.mockRestore();            
     });
 
+    it('should show the Sign Out label for OAuth licensing', () => {
+        initialState.serverStatus.licensingInfo.type = 'oauth';
+
+        const { getByTestId } = render(<Controls callback={callbackFn} />, {
+            initialState
+        });
+
+        // OAuth shares the MHLM sign-out affordance.
+        expect(getByTestId('unsetLicensingBtn').textContent).toContain('Sign Out');
+    });
+
+    it('should disable the start button for OAuth licensing when the user is not entitled', () => {
+        initialState.serverStatus.licensingInfo.type = 'oauth';
+        // No entitlement selected yet.
+        initialState.serverStatus.licensingInfo.entitlementId = null;
+
+        const { getByTestId } = render(<Controls callback={callbackFn} />, {
+            initialState
+        });
+
+        expect(getByTestId('startMatlabBtn').disabled).toBe(true);
+    });
+
+    it('should enable the start button for OAuth licensing once the user is entitled', () => {
+        initialState.serverStatus.licensingInfo.type = 'oauth';
+        initialState.serverStatus.licensingInfo.entitlementId = initialState.serverStatus.licensingInfo.entitlements[0].id;
+
+        const { getByTestId } = render(<Controls callback={callbackFn} />, {
+            initialState
+        });
+
+        expect(getByTestId('startMatlabBtn').disabled).toBe(false);
+    });
+
     it('should show shutdown button for matlab-proxy', () => {
         // Hide the tutorial and make the overlay visible.
         initialState.tutorialHidden = true;

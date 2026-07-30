@@ -990,10 +990,11 @@ class AppState:
             "entitlement_id": None,
         }
 
-        # Fetch entitlements using the OAuth access token (same MHLM endpoint).
+        # Fetch entitlements using the OAuth access token (same MHLM endpoint
+        # used by the MHLM sign-in path).
         matlab_version = self.settings["matlab_version"]
         entitlements = await mw.fetch_entitlements(
-            self.settings["integ_mhlm_api_endpoint"],
+            self.settings["mhlm_api_endpoint"],
             access_token,
             matlab_version,
         )

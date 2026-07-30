@@ -68,6 +68,21 @@ describe('Information Component', () => {
         );
     });
 
+    it('should render Online Licensing info with licensing type OAuth', () => {
+        initialState.serverStatus.licensingInfo.type = 'oauth';
+        const { getByText } = render(
+            <Information closeHandler={closeHandler}>{children}</Information>,
+            { initialState }
+        );
+
+        const licensingInfo = getByText('Licensing:');
+
+        // OAuth shares the MHLM "Online License Manager (<email>)" label.
+        expect(licensingInfo.nextSibling.textContent).toContain(
+            initialState.serverStatus.licensingInfo.emailAddress
+        );
+    });
+
     it('should render Online Licensing info with licensing type NLM', () => {
         initialState.serverStatus.licensingInfo = {
             type: 'nlm',
