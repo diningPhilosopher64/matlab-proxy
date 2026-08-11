@@ -3,6 +3,8 @@
 import asyncio
 import json
 import os
+import stat
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -306,6 +308,34 @@ def test_persist_config_data(licensing_data: dict, tmp_path):
 
     # Assert
     assert json.loads(got) == cached_data
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX file-mode bits do not apply on Windows (os.chmod only toggles read-only).",
+)
+def test_persist_config_data_sets_owner_only_file_perms(tmp_path):
+    """The cached config holds durable secrets (OAuth refresh_token + DPoP key,
+    or the MHLM identity token), so persist_config_data() must write it 0o600
+    (owner read/write only) to keep it out of reach of other users on the host.
+    """
+    # Arrange
+    tmp_file = tmp_path / "parent_1" / "parent_2" / "tmp_file.json"
+    settings = {
+        "matlab_config_file": tmp_file,
+        "error": None,
+        "matlab_version": None,
+        "warnings": [],
+        "mwi_idle_timeout": None,
+    }
+    app_state = AppState(settings=settings)
+    app_state.licensing = {"type": "existing_license"}
+
+    # Act
+    app_state.persist_config_data()
+
+    # Assert
+    assert stat.S_IMODE(tmp_file.stat().st_mode) == 0o600
 
 
 validate_required_processes_test_data = [
