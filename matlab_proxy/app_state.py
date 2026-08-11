@@ -273,6 +273,30 @@ class AppState:
             # The file being absent is acceptable.
             pass
 
+    def __write_cached_config_file(self, config):
+        """Serialize ``config`` to the cached config file with owner-only perms.
+
+        The cached config holds durable secrets (OAuth refresh_token + DPoP
+        private key, or the MHLM identity token), so the file is written 0o600
+        to keep it out of reach of other users on the host. We deliberately do
+        NOT tighten the parent directory: it is shared with sibling subtrees
+        (certs/, ports/, proxy_manager/) that jmp and other integrations own,
+        so restricting it could lock a different-UID client out of its own
+        state. Tightening the file perms is best-effort: on Windows os.chmod
+        only toggles the read-only bit, and if the file already exists owned by
+        a different user the chmod raises - in either case we log and continue
+        rather than fail the licensing save. Note this only holds until another
+        (possibly older) client rewrites the shared file at its own umask.
+        """
+        cached_config_file = self.__get_cached_config_file()
+        cached_config_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(cached_config_file, "w") as f:
+            f.write(json.dumps(config))
+        try:
+            os.chmod(cached_config_file, 0o600)
+        except OSError:
+            logger.debug("Could not tighten permissions on %s.", cached_config_file)
+
     def __reset_and_delete_cached_config(self):
         """Reset licensing variable of the class and removes the cached config file."""
         logger.debug("Resetting cached config information...")
@@ -555,8 +579,7 @@ class AppState:
             return
 
         existing["licensing"]["clients"] = clients
-        with open(cached_config_file, "w") as f:
-            f.write(json.dumps(existing))
+        self.__write_cached_config_file(existing)
 
     async def __update_matlab_state_based_on_connector_state(self):
         """Updates MATLAB state based on the Embedded Connector state.
@@ -1020,7 +1043,7 @@ class AppState:
         response contains a NEW refresh_token that replaces the old one - this is
         handled by _set_licensing_from_token_response.
         """
-        refresh_url = f"{self.settings['integ_oauth_endpoint']}/oauth2/v1/oauth/refresh"
+        refresh_url = f"{self.settings['oauth_endpoint']}/oauth2/v1/oauth/refresh"
         client_id = self.licensing.get("client_id") or self.settings["oauth_client_id"]
         dpop_key = self.licensing.get("dpop_key")
 
@@ -1165,14 +1188,11 @@ class AppState:
 
         elif self.licensing["type"] in ["mhlm", "nlm", "existing_license"]:
             logger.debug("Saving licensing information...")
-            cached_config_file = self.__get_cached_config_file()
-            cached_config_file.parent.mkdir(parents=True, exist_ok=True)
             config = {
                 "licensing": self.licensing,
                 "matlab": {"version": self.settings["matlab_version"]},
             }
-            with open(cached_config_file, "w") as f:
-                f.write(json.dumps(config))
+            self.__write_cached_config_file(config)
 
     def __persist_oauth_config_data(self):
         """Persist OAuth licensing into the multi-client ``clients`` array.
@@ -1183,7 +1203,6 @@ class AppState:
         """
         logger.debug("Saving OAuth licensing information...")
         cached_config_file = self.__get_cached_config_file()
-        cached_config_file.parent.mkdir(parents=True, exist_ok=True)
 
         client_id = self.licensing["client_id"]
         dpop_key = self.licensing.get("dpop_key")
@@ -1225,8 +1244,7 @@ class AppState:
         clients.append(client_entry)
 
         config = {"licensing": {"type": "oauth", "clients": clients}}
-        with open(cached_config_file, "w") as f:
-            f.write(json.dumps(config))
+        self.__write_cached_config_file(config)
 
     def create_logs_dir_for_MATLAB(self):
         """Creates the root folder where MATLAB writes the ready file and updates attibutes on self."""

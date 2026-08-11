@@ -466,7 +466,7 @@ async def device_authorize(req):
 
     try:
         device_response = await mw.device_authorize(
-            state.settings["integ_oauth_endpoint"],
+            state.settings["oauth_endpoint"],
             state.settings["oauth_client_id"],
             code_challenge,
             source_id,
@@ -482,7 +482,9 @@ async def device_authorize(req):
         # Persist the user-facing fields and an absolute deadline so poll_device_token
         # can re-serve them on every pending poll. This lets the frontend rehydrate the
         # same code/URL/countdown after a page refresh instead of starting a new flow.
-        expires_in = device_response.get("expires_in", constants.OAUTH_DEVICE_CODE_LIFESPAN_SECONDS)
+        expires_in = device_response.get(
+            "expires_in", constants.OAUTH_DEVICE_CODE_LIFESPAN_SECONDS
+        )
         state.settings["device_user_code"] = device_response["user_code"]
         state.settings["device_verification_uri"] = device_response["verification_uri"]
         state.settings["device_verification_uri_complete"] = device_response.get(
@@ -566,7 +568,7 @@ async def poll_device_token(req):
         return _pending_response()
 
     try:
-        oauth_host = state.settings["integ_oauth_endpoint"]
+        oauth_host = state.settings["oauth_endpoint"]
         client_id = state.settings["oauth_client_id"]
 
         auth_status = await mw.check_device_auth_status(

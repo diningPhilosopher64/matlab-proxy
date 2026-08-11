@@ -169,7 +169,7 @@ def get_oauth_settings(env_config, ws_env_suffix):
         # sign-in UI to render.
         "online_auth_method": "device_code" if oauth_client_id else "mhlm",
         # MathWorks OAuth server base URL (signin host).
-        "integ_oauth_endpoint": f"https://signin{ws_env_suffix}.mathworks.com",
+        "oauth_endpoint": f"https://signin{ws_env_suffix}.mathworks.com",
         # Transient per-session fields populated during an active device flow.
         "code_verifier": None,
         "code_challenge": None,
