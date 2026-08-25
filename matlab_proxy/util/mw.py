@@ -334,11 +334,6 @@ async def exchange_device_token(
             error = error_response.get("error", f"HTTP {resp.status}")
             raise OnlineLicensingError(f"Token exchange failed: {error}")
 
-        from pprint import pprint
-
-        print("\n\n Hello \n\n")
-        pprint(await resp.json())
-
         return await resp.json()
 
 
@@ -423,7 +418,6 @@ async def revoke_oauth_token(revoke_url, client_id, refresh_token, dpop_key=None
             if resp.status != 200:
                 logger.warning(f"Token revocation returned HTTP {resp.status}.")
                 return False
-            print("\n\n\n Successfully hit the revoke endpoint....")
             return True
     except Exception as e:
         # Best-effort: never block sign-out on a revoke failure.
