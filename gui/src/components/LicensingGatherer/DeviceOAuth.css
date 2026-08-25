@@ -98,3 +98,29 @@
     margin-top: 15px;
     color: #6c6c6c;
 }
+
+/* Error alert, mirroring the Information panel's treatment so the failure
+   message stands out instead of reading as plain body text. */
+#DeviceOAuth .error-container.alert {
+    border-radius: 0;
+    margin: 5px 0;
+    padding: 10px;
+}
+
+#DeviceOAuth .error-container.alert p {
+    margin: 0;
+}
+
+#DeviceOAuth .error-container.alert .error-text {
+    margin-left: 30px;
+}
+
+#DeviceOAuth .error-container.alert .error-text pre {
+    white-space: pre-wrap;
+    margin: 0;
+}
+
+/* Space the retry button away from the error alert above it. */
+#DeviceOAuth .device-oauth-try-again {
+    margin-top: 15px;
+}

@@ -5,6 +5,7 @@ import os
 import random
 import re
 import secrets
+import urllib.parse
 from collections import namedtuple
 from datetime import timedelta, timezone
 from http import HTTPStatus
@@ -122,11 +123,12 @@ def fetch_access_token_valid_json_fixture():
 
 
 class MockResponse:
-    def __init__(self, ok, payload={}, status=HTTPStatus.OK, text=""):
+    def __init__(self, ok, payload={}, status=HTTPStatus.OK, text="", headers=None):
         self._payload = payload
         self._text = text
         self.ok = ok
         self.status = status
+        self.headers = headers if headers is not None else {}
 
     async def json(self):
         return self._payload
@@ -490,6 +492,209 @@ async def test_fetch_entitlements(mocker, mwa_api_data, valid_entitlements):
 
     assert resp is not None and len(resp) > 0
     assert re.match(url_pattern, url)
+
+
+# ---------------------------------------------------------------------------
+# OAuth 2.0 device code flow HTTP client functions
+# ---------------------------------------------------------------------------
+
+OAUTH_HOST = "https://signin.mathworks.com"
+OAUTH_CLIENT_ID = "mw-cpi-matlab-proxy"
+
+
+class _FakeDPoPKey:
+    """Minimal stand-in for DPoPKey that records the proofs it is asked for."""
+
+    def __init__(self):
+        self.calls = []
+
+    def generate_proof(self, method, url):
+        self.calls.append((method, url))
+        return f"dpop-proof-for-{method}-{url}"
+
+
+async def test_device_authorize_returns_json(mocker):
+    """device_authorize returns the parsed JSON body on a 200 JSON response."""
+    device_response = {
+        "device_code": "secret-device-code",
+        "user_code": "ABCD-EFGH",
+        "verification_uri": f"{OAUTH_HOST}/device",
+        "expires_in": 600,
+        "interval": 5,
+    }
+    mock_resp = MockResponse(
+        ok=True,
+        payload=device_response,
+        status=HTTPStatus.OK,
+        headers={"Content-Type": "application/json"},
+    )
+    mocked = mocker.patch("aiohttp.ClientSession.post", return_value=mock_resp)
+    dpop_key = _FakeDPoPKey()
+
+    result = await mw.device_authorize(
+        OAUTH_HOST, OAUTH_CLIENT_ID, "code-challenge", "source-id", dpop_key=dpop_key
+    )
+
+    assert result == device_response
+    # Endpoint URL and the DPoP proof header must be set.
+    _, args, kwargs = mocked.mock_calls[0]
+    assert args[0] == f"{OAUTH_HOST}/oauth2/v1/oauth/device/authorize"
+    assert kwargs["headers"]["DPoP"] == "dpop-proof-for-POST-" + args[0]
+    assert kwargs["allow_redirects"] is False
+    assert dpop_key.calls == [("POST", args[0])]
+
+
+async def test_device_authorize_rejects_redirect(mocker):
+    """A redirect from the device endpoint means device flow is unavailable -> error."""
+    mock_resp = MockResponse(
+        ok=False,
+        status=HTTPStatus.FOUND,  # 302
+        headers={"Location": "https://elsewhere.example"},
+    )
+    mocker.patch("aiohttp.ClientSession.post", return_value=mock_resp)
+
+    with pytest.raises(exceptions.OnlineLicensingError):
+        await mw.device_authorize(
+            OAUTH_HOST, OAUTH_CLIENT_ID, "code-challenge", "source-id"
+        )
+
+
+async def test_device_authorize_rejects_non_200(mocker):
+    """A non-200 (and non-redirect) status raises OnlineLicensingError."""
+    mock_resp = MockResponse(ok=False, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+    mocker.patch("aiohttp.ClientSession.post", return_value=mock_resp)
+
+    with pytest.raises(exceptions.OnlineLicensingError):
+        await mw.device_authorize(
+            OAUTH_HOST, OAUTH_CLIENT_ID, "code-challenge", "source-id"
+        )
+
+
+async def test_device_authorize_rejects_non_json(mocker):
+    """A 200 response that is not JSON raises OnlineLicensingError."""
+    mock_resp = MockResponse(
+        ok=True,
+        status=HTTPStatus.OK,
+        text="<html>not json</html>",
+        headers={"Content-Type": "text/html"},
+    )
+    mocker.patch("aiohttp.ClientSession.post", return_value=mock_resp)
+
+    with pytest.raises(exceptions.OnlineLicensingError):
+        await mw.device_authorize(
+            OAUTH_HOST, OAUTH_CLIENT_ID, "code-challenge", "source-id"
+        )
+
+
+async def test_check_device_auth_status_returns_status(mocker):
+    """check_device_auth_status returns the parsed JSON and hits the authstatus GET endpoint."""
+    mock_resp = MockResponse(ok=True, payload={"status": "PENDING"})
+    mocked = mocker.patch("aiohttp.ClientSession.get", return_value=mock_resp)
+
+    result = await mw.check_device_auth_status(
+        OAUTH_HOST, "secret-device-code", OAUTH_CLIENT_ID
+    )
+
+    assert result == {"status": "PENDING"}
+    _, args, _ = mocked.mock_calls[0]
+    url = args[0]
+    assert url.startswith(f"{OAUTH_HOST}/oauth2/v1/oauth/device/authstatus?")
+    # device_code and client_id are passed as query params.
+    assert "device_code=secret-device-code" in url
+    assert f"client_id={OAUTH_CLIENT_ID}" in url
+
+
+async def test_check_device_auth_status_error(mocker):
+    """A non-200 authstatus response raises OnlineLicensingError."""
+    mock_resp = MockResponse(
+        ok=False, status=HTTPStatus.SERVICE_UNAVAILABLE, text="unavailable"
+    )
+    mocker.patch("aiohttp.ClientSession.get", return_value=mock_resp)
+
+    with pytest.raises(exceptions.OnlineLicensingError):
+        await mw.check_device_auth_status(OAUTH_HOST, "device-code", OAUTH_CLIENT_ID)
+
+
+async def test_exchange_device_token_returns_tokens(mocker):
+    """exchange_device_token returns the token response and sends a DPoP proof."""
+    token_response = {
+        "mwa_token": {"accessTokenString": "access-abc"},
+        "refresh_token": "refresh-xyz",
+    }
+    mock_resp = MockResponse(ok=True, payload=token_response, status=HTTPStatus.OK)
+    mocked = mocker.patch("aiohttp.ClientSession.post", return_value=mock_resp)
+    dpop_key = _FakeDPoPKey()
+    token_url = f"{OAUTH_HOST}/oauth2/v1/oauth/token"
+
+    result = await mw.exchange_device_token(
+        token_url, "device-code", OAUTH_CLIENT_ID, "code-verifier", dpop_key=dpop_key
+    )
+
+    assert result == token_response
+    _, args, kwargs = mocked.mock_calls[0]
+    assert args[0] == token_url
+    assert kwargs["headers"]["DPoP"] == f"dpop-proof-for-POST-{token_url}"
+    # The body is form-urlencoded; decode it and assert the device_code grant.
+    body = dict(urllib.parse.parse_qsl(kwargs["data"]))
+    assert body["grant_type"] == mw.DEVICE_CODE_GRANT_TYPE
+    assert body["device_code"] == "device-code"
+    assert body["code_verifier"] == "code-verifier"
+
+
+async def test_exchange_device_token_error_surfaces_server_error(mocker):
+    """A failed token exchange raises OnlineLicensingError including the server error."""
+    mock_resp = MockResponse(
+        ok=False,
+        payload={"error": "invalid_grant"},
+        status=HTTPStatus.BAD_REQUEST,
+    )
+    mocker.patch("aiohttp.ClientSession.post", return_value=mock_resp)
+
+    with pytest.raises(exceptions.OnlineLicensingError, match="invalid_grant"):
+        await mw.exchange_device_token(
+            f"{OAUTH_HOST}/oauth2/v1/oauth/token",
+            "device-code",
+            OAUTH_CLIENT_ID,
+            "code-verifier",
+        )
+
+
+async def test_refresh_oauth_token_returns_rotated_tokens(mocker):
+    """refresh_oauth_token returns the new (rotated) token response with a DPoP proof."""
+    rotated = {
+        "mwa_token": {"accessTokenString": "new-access"},
+        "refresh_token": "new-refresh-rotated",
+    }
+    mock_resp = MockResponse(ok=True, payload=rotated, status=HTTPStatus.OK)
+    mocked = mocker.patch("aiohttp.ClientSession.post", return_value=mock_resp)
+    dpop_key = _FakeDPoPKey()
+    refresh_url = f"{OAUTH_HOST}/oauth2/v1/oauth/refresh"
+
+    result = await mw.refresh_oauth_token(
+        refresh_url, OAUTH_CLIENT_ID, "old-refresh", dpop_key=dpop_key
+    )
+
+    assert result == rotated
+    _, args, kwargs = mocked.mock_calls[0]
+    assert args[0] == refresh_url
+    assert kwargs["headers"]["DPoP"] == f"dpop-proof-for-POST-{refresh_url}"
+    assert kwargs["json"]["grant_type"] == "refresh_token"
+    assert kwargs["json"]["refresh_token"] == "old-refresh"
+
+
+async def test_refresh_oauth_token_error(mocker):
+    """A failed refresh raises OnlineLicensingError including the server error."""
+    mock_resp = MockResponse(
+        ok=False,
+        payload={"error": "invalid_token"},
+        status=HTTPStatus.UNAUTHORIZED,
+    )
+    mocker.patch("aiohttp.ClientSession.post", return_value=mock_resp)
+
+    with pytest.raises(exceptions.OnlineLicensingError, match="invalid_token"):
+        await mw.refresh_oauth_token(
+            f"{OAUTH_HOST}/oauth2/v1/oauth/refresh", OAUTH_CLIENT_ID, "old-refresh"
+        )
 
 
 def test_parse_mhlm_no_error():

@@ -221,33 +221,35 @@ async def device_authorize(
     if dpop_key:
         headers["DPoP"] = dpop_key.generate_proof("POST", device_auth_endpoint)
 
-    async with aiohttp.ClientSession(trust_env=True) as client_session:
-        async with client_session.post(
+    async with (
+        aiohttp.ClientSession(trust_env=True) as client_session,
+        client_session.post(
             device_auth_endpoint,
             json=payload,
             headers=headers,
             allow_redirects=False,
-        ) as resp:
-            # Reject redirects - the OAuth server should respond directly. A
-            # redirect usually means the device flow is not available here.
-            if resp.status in (301, 302, 303, 307, 308):
-                location = resp.headers.get("Location", "unknown")
-                raise OnlineLicensingError(
-                    f"Device authorization endpoint not available (redirect to: {location})."
-                )
+        ) as resp,
+    ):
+        # Reject redirects - the OAuth server should respond directly. A
+        # redirect usually means the device flow is not available here.
+        if resp.status in (301, 302, 303, 307, 308):
+            location = resp.headers.get("Location", "unknown")
+            raise OnlineLicensingError(
+                f"Device authorization endpoint not available (redirect to: {location})."
+            )
 
-            if resp.status != 200:
-                raise OnlineLicensingError(
-                    f"Device authorization failed: HTTP {resp.status}"
-                )
+        if resp.status != 200:
+            raise OnlineLicensingError(
+                f"Device authorization failed: HTTP {resp.status}"
+            )
 
-            content_type = resp.headers.get("Content-Type", "")
-            if "application/json" not in content_type:
-                raise OnlineLicensingError(
-                    "Device authorization returned a non-JSON response."
-                )
+        content_type = resp.headers.get("Content-Type", "")
+        if "application/json" not in content_type:
+            raise OnlineLicensingError(
+                "Device authorization returned a non-JSON response."
+            )
 
-            return await resp.json()
+        return await resp.json()
 
 
 async def check_device_auth_status(oauth_host, device_code, client_id):
@@ -269,14 +271,16 @@ async def check_device_auth_status(oauth_host, device_code, client_id):
     )
     url = f"{oauth_host}/oauth2/v1/oauth/device/authstatus?{params}"
 
-    async with aiohttp.ClientSession(trust_env=True) as client_session:
-        async with client_session.get(url) as resp:
-            if resp.status != 200:
-                text = await resp.text()
-                raise OnlineLicensingError(
-                    f"Auth status check failed: {resp.status} - {text[:200]}"
-                )
-            return await resp.json()
+    async with (
+        aiohttp.ClientSession(trust_env=True) as client_session,
+        client_session.get(url) as resp,
+    ):
+        if resp.status != 200:
+            text = await resp.text()
+            raise OnlineLicensingError(
+                f"Auth status check failed: {resp.status} - {text[:200]}"
+            )
+        return await resp.json()
 
 
 async def exchange_device_token(
@@ -307,19 +311,21 @@ async def exchange_device_token(
     if dpop_key:
         headers["DPoP"] = dpop_key.generate_proof("POST", token_url)
 
-    async with aiohttp.ClientSession(trust_env=True) as client_session:
-        async with client_session.post(
+    async with (
+        aiohttp.ClientSession(trust_env=True) as client_session,
+        client_session.post(
             token_url, data=urllib.parse.urlencode(payload), headers=headers
-        ) as resp:
-            if resp.status != 200:
-                try:
-                    error_response = await resp.json()
-                except Exception:
-                    error_response = {}
-                error = error_response.get("error", f"HTTP {resp.status}")
-                raise OnlineLicensingError(f"Token exchange failed: {error}")
+        ) as resp,
+    ):
+        if resp.status != 200:
+            try:
+                error_response = await resp.json()
+            except Exception:
+                error_response = {}
+            error = error_response.get("error", f"HTTP {resp.status}")
+            raise OnlineLicensingError(f"Token exchange failed: {error}")
 
-            return await resp.json()
+        return await resp.json()
 
 
 async def refresh_oauth_token(refresh_url, client_id, refresh_token, dpop_key=None):
@@ -350,18 +356,18 @@ async def refresh_oauth_token(refresh_url, client_id, refresh_token, dpop_key=No
     if dpop_key:
         headers["DPoP"] = dpop_key.generate_proof("POST", refresh_url)
 
-    async with aiohttp.ClientSession(trust_env=True) as client_session:
-        async with client_session.post(
-            refresh_url, json=payload, headers=headers
-        ) as resp:
-            if resp.status != 200:
-                try:
-                    error_response = await resp.json()
-                except Exception:
-                    error_response = {}
-                error = error_response.get("error", f"HTTP {resp.status}")
-                raise OnlineLicensingError(f"Token refresh failed: {error}")
-            return await resp.json()
+    async with (
+        aiohttp.ClientSession(trust_env=True) as client_session,
+        client_session.post(refresh_url, json=payload, headers=headers) as resp,
+    ):
+        if resp.status != 200:
+            try:
+                error_response = await resp.json()
+            except Exception:
+                error_response = {}
+            error = error_response.get("error", f"HTTP {resp.status}")
+            raise OnlineLicensingError(f"Token refresh failed: {error}")
+        return await resp.json()
 
 
 def range_matlab_connector_ports():

@@ -377,7 +377,7 @@ class AppState:
                         ]
 
                     if licensing["type"] == "oauth":
-                        await self.__init_oauth_licensing_from_cache(licensing)
+                        await self._init_oauth_licensing_from_cache(licensing)
 
                     elif licensing["type"] == "nlm":
                         # Note: Only NLM settings entered in browser were cached.
@@ -432,7 +432,7 @@ class AppState:
                 except Exception:
                     self.__reset_and_delete_cached_config()
 
-    async def __init_oauth_licensing_from_cache(self, licensing):
+    async def _init_oauth_licensing_from_cache(self, licensing):
         """Restore OAuth licensing for the current client_id from cached config.
 
         Searches the cached ``clients`` array for an entry matching this
@@ -504,7 +504,7 @@ class AppState:
         # No durable credential to work with: require a fresh sign-in.
         if not refresh_token:
             logger.debug("Cached OAuth entry has no refresh token; sign-in required.")
-            self.__remove_oauth_client_entry(client_id)
+            self._remove_oauth_client_entry(client_id)
             self.licensing = None
             return
 
@@ -518,7 +518,7 @@ class AppState:
                     logger.debug(
                         "Cached OAuth refresh token expired; sign-in required."
                     )
-                    self.__remove_oauth_client_entry(client_id)
+                    self._remove_oauth_client_entry(client_id)
                     self.licensing = None
                     return
             except ValueError:
@@ -533,7 +533,7 @@ class AppState:
         # refresh token and a fresh refresh_token_expiry.
         try:
             logger.debug("Refreshing cached OAuth token to start MATLAB...")
-            await self.__refresh_oauth_licensing()
+            await self._refresh_oauth_licensing()
         except Exception as e:
             # Catch broadly (network errors raise aiohttp.ClientError, not just
             # OnlineLicensingError). Remove ONLY this client's entry so other
@@ -541,14 +541,10 @@ class AppState:
             # letting this propagate would hit init_licensing's outer handler
             # and delete the entire cache file.
             logger.debug(f"OAuth token refresh failed ({e}); removing client entry.")
-            self.__remove_oauth_client_entry(client_id)
+            self._remove_oauth_client_entry(client_id)
             self.licensing = None
 
-    def remove_oauth_client_entry(self, client_id):
-        """Public wrapper to remove a single client's cached OAuth entry."""
-        self.__remove_oauth_client_entry(client_id)
-
-    def __remove_oauth_client_entry(self, client_id):
+    def _remove_oauth_client_entry(self, client_id):
         """Remove a single client's entry from the cached OAuth ``clients`` array.
 
         Deletes the whole cached config file if no client entries remain.
@@ -946,23 +942,23 @@ class AppState:
             self.error = e
             log_error(logger, e)
 
-    async def set_licensing_oauth_with_token_response(self, token_response):
-        """Set licensing from an OAuth token response (used by the device code flow)."""
-        await self._set_licensing_from_token_response(
-            token_response, self.settings["oauth_client_id"]
-        )
-
-    async def _set_licensing_from_token_response(self, token_response, client_id):
+    async def set_licensing_from_token_response(self, token_response):
         """Set licensing from an OAuth token response.
 
-        The token response from the MathWorks OAuth server contains a nested
-        ``mwa_token`` object with the actual access token and user information.
-        Fetches entitlements and auto-selects when only one is available.
+        Used by both the device code sign-in flow and token refresh. The token
+        response from the MathWorks OAuth server contains a nested ``mwa_token``
+        object with the actual access token and user information. Fetches
+        entitlements and auto-selects when only one is available.
 
         Args:
             token_response (dict): Token response from the OAuth server.
-            client_id (str): The OAuth client id the tokens are bound to.
         """
+        # The tokens are bound to the current client: an in-progress refresh
+        # carries the client_id on self.licensing; a first-time device sign-in
+        # has no licensing yet, so fall back to the configured client id.
+        client_id = self.licensing.get("client_id") if self.licensing else None
+        client_id = client_id or self.settings["oauth_client_id"]
+
         mwa_token = token_response.get("mwa_token", token_response)
         reference_detail = mwa_token.get("referenceDetail", {})
         access_token = mwa_token.get(
@@ -1035,19 +1031,19 @@ class AppState:
 
         self.persist_config_data()
 
-    async def __refresh_oauth_licensing(self):
+    async def _refresh_oauth_licensing(self):
         """Refresh the OAuth access token using the stored refresh token.
 
         Uses the persisted DPoP key (the OAuth server requires the SAME key that
         was used during device authorization). SAT refresh tokens rotate, so the
         response contains a NEW refresh_token that replaces the old one - this is
-        handled by _set_licensing_from_token_response.
+        handled by set_licensing_from_token_response.
         """
         refresh_url = f"{self.settings['oauth_endpoint']}/oauth2/v1/oauth/refresh"
         client_id = self.licensing.get("client_id") or self.settings["oauth_client_id"]
         dpop_key = self.licensing.get("dpop_key")
 
-        # Ensure the DPoP key is available to _set_licensing_from_token_response.
+        # Ensure the DPoP key is available to set_licensing_from_token_response.
         self.settings["dpop_key"] = dpop_key
 
         token_response = await mw.refresh_oauth_token(
@@ -1057,7 +1053,7 @@ class AppState:
             dpop_key=dpop_key,
         )
 
-        await self._set_licensing_from_token_response(token_response, client_id)
+        await self.set_licensing_from_token_response(token_response)
 
     def unset_licensing(self):
         """Unset the licensing."""
@@ -1184,7 +1180,7 @@ class AppState:
             self.__delete_cached_config_file()
 
         elif self.licensing["type"] == "oauth":
-            self.__persist_oauth_config_data()
+            self._persist_oauth_config_data()
 
         elif self.licensing["type"] in ["mhlm", "nlm", "existing_license"]:
             logger.debug("Saving licensing information...")
@@ -1194,7 +1190,7 @@ class AppState:
             }
             self.__write_cached_config_file(config)
 
-    def __persist_oauth_config_data(self):
+    def _persist_oauth_config_data(self):
         """Persist OAuth licensing into the multi-client ``clients`` array.
 
         The cached config file is shared across integrations, each with its own
@@ -1468,7 +1464,7 @@ class AppState:
                         hours=1
                     )
                     if expiry_window <= datetime.now(timezone.utc):
-                        await self.__refresh_oauth_licensing()
+                        await self._refresh_oauth_licensing()
                 except OnlineLicensingError:
                     self.__reset_and_delete_cached_config()
                     raise OnlineLicensingError(

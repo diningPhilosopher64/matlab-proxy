@@ -1367,3 +1367,105 @@ async def test_cookie_jar_web_socket(proxy_payload, test_server):
         ]
         # Assert
         assert actual_custom_cookie == expected_custom_cookie
+
+
+@pytest.fixture
+def oauth_device_request(mocker):
+    """A mock request wired for the device_authorize handler.
+
+    Provides a settings dict with the OAuth fields the handler reads, plus a
+    JSON body accessor whose payload each test can override.
+    """
+    req = mocker.MagicMock()
+    req.app = {
+        "state": mocker.MagicMock(),
+        "settings": {
+            "oauth_endpoint": "https://signin.mathworks.com",
+            "oauth_client_id": "mw-cpi-matlab-proxy",
+            "matlab_version": "R2024b",
+            "matlab_version_determined_on_startup": True,
+        },
+    }
+    # The handler stores transient state on state.settings; point it at the same
+    # dict so assertions can read what the handler wrote.
+    req.app["state"].settings = req.app["settings"]
+
+    async def _json():
+        return req._json_body
+
+    req._json_body = {}
+    req.json = _json
+    return req
+
+
+@pytest.fixture
+def mock_mw_device_authorize(mocker):
+    """Patch mw.device_authorize (as imported into app.py) with a canned response."""
+    return mocker.patch(
+        "matlab_proxy.app.mw.device_authorize",
+        return_value={
+            "device_code": "secret-device-code",
+            "user_code": "ABCD-EFGH",
+            "verification_uri": "https://www.mathworks.com/mwlogin",
+            "verification_uri_complete": "https://www.mathworks.com/mwlogin?code=ABCD-EFGH",
+            "expires_in": 600,
+            "interval": 5,
+        },
+    )
+
+
+async def test_device_authorize_records_posted_matlab_version(
+    patch_authenticate_access_decorator, oauth_device_request, mock_mw_device_authorize
+):
+    """When the version was NOT determined on startup, device_authorize must record
+    the matlabVersion sent by the frontend (mirroring the MHLM set_licensing path)."""
+    settings = oauth_device_request.app["settings"]
+    settings["matlab_version_determined_on_startup"] = False
+    settings["matlab_version"] = None
+    oauth_device_request._json_body = {"matlabVersion": "R2023b"}
+
+    resp = await app.device_authorize(oauth_device_request)
+
+    assert resp.status == HTTPStatus.OK
+    # The user-chosen version must be recorded for later licensing/start.
+    assert settings["matlab_version"] == "R2023b"
+    # And the device code (a secret) must never be sent to the frontend.
+    body = json.loads(resp.body)
+    assert "device_code" not in body
+    assert body["user_code"] == "ABCD-EFGH"
+
+
+async def test_device_authorize_ignores_matlab_version_when_determined_on_startup(
+    patch_authenticate_access_decorator, oauth_device_request, mock_mw_device_authorize
+):
+    """If the version was determined on startup, a posted matlabVersion is ignored
+    - the server-detected version wins (same rule as the MHLM path)."""
+    settings = oauth_device_request.app["settings"]
+    settings["matlab_version_determined_on_startup"] = True
+    settings["matlab_version"] = "R2024b"
+    oauth_device_request._json_body = {"matlabVersion": "R2023b"}
+
+    resp = await app.device_authorize(oauth_device_request)
+
+    assert resp.status == HTTPStatus.OK
+    assert settings["matlab_version"] == "R2024b"
+
+
+async def test_device_authorize_handles_empty_body(
+    patch_authenticate_access_decorator, oauth_device_request, mock_mw_device_authorize
+):
+    """device_authorize must not fail when the POST has no JSON body (version known)."""
+    settings = oauth_device_request.app["settings"]
+    settings["matlab_version_determined_on_startup"] = True
+    settings["matlab_version"] = "R2024b"
+
+    # Simulate a request with no/invalid JSON body.
+    async def _raise():
+        raise ValueError("no body")
+
+    oauth_device_request.json = _raise
+
+    resp = await app.device_authorize(oauth_device_request)
+
+    assert resp.status == HTTPStatus.OK
+    assert settings["matlab_version"] == "R2024b"

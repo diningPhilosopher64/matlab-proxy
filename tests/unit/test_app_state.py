@@ -6,6 +6,7 @@ import os
 import stat
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
@@ -15,6 +16,8 @@ import pytest
 from matlab_proxy import settings
 from matlab_proxy.app_state import AppState
 from matlab_proxy.constants import MWI_AUTH_TOKEN_NAME_FOR_HTTP
+from matlab_proxy.util import mw
+from matlab_proxy.util.dpop import DPoPKey
 from matlab_proxy.util.mwi.exceptions import (
     LicensingError,
     MatlabError,
@@ -189,6 +192,33 @@ class Mock_matlab:
         ),
         ({"type": "existing_license"}, True),
         ({"type": "invalid_type"}, False),
+        (
+            {
+                "type": "oauth",
+                "source_id": "mw-cpi-matlab-proxy",
+                "refresh_token": "refresh-abc",
+                "entitlement_id": "123456",
+            },
+            True,
+        ),
+        (
+            {
+                "type": "oauth",
+                "source_id": "mw-cpi-matlab-proxy",
+                "refresh_token": None,
+                "entitlement_id": "123456",
+            },
+            False,
+        ),
+        (
+            {
+                "type": "oauth",
+                "source_id": "mw-cpi-matlab-proxy",
+                "refresh_token": "refresh-abc",
+                "entitlement_id": None,
+            },
+            False,
+        ),
     ],
     ids=[
         "None licensing",
@@ -198,6 +228,9 @@ class Mock_matlab:
         "happy path-mhlm",
         "happy path-existing license",
         "invalid license",
+        "happy path-oauth",
+        "oauth missing refresh_token",
+        "oauth missing entitlement_id",
     ],
 )
 def test_is_licensed(app_state_fixture, licensing, expected):
@@ -1290,3 +1323,330 @@ async def test_get_licensing_env_vars_existing_license(app_state_fixture):
 
     # Assert
     assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# OAuth 2.0 device code licensing
+# ---------------------------------------------------------------------------
+
+
+def _make_oauth_app_state(tmp_path, client_id="mw-cpi-matlab-proxy"):
+    """Build a bare AppState wired with a temp cache file and OAuth settings.
+
+    Uses AppState directly (no server tasks) as the persistence/restore paths
+    under test do not require the running event-loop tasks.
+    """
+    tmp_file = tmp_path / "parent_1" / "parent_2" / "proxy_app_config.json"
+    settings = {
+        "matlab_config_file": tmp_file,
+        "error": None,
+        "warnings": [],
+        "matlab_version": "R2024b",
+        "mwi_idle_timeout": None,
+        "oauth_client_id": client_id,
+        "oauth_endpoint": "https://signin.mathworks.com",
+        "mhlm_api_endpoint": "https://licensing.mathworks.com/mls/service/v1/entitlement/list",
+        "dpop_key": None,
+    }
+    return AppState(settings=settings)
+
+
+def _oauth_token_response(email="user@example.com", entitlements_single=True):
+    """A representative MathWorks OAuth token response (nested mwa_token)."""
+    return {
+        "mwa_token": {
+            "accessTokenString": "access-token-abc",
+            "expirationDate": "2030-01-15T10:30:00.000+0000",
+            "referenceDetail": {
+                "email": email,
+                "firstName": "John",
+                "lastName": "Doe",
+                "displayName": "John Doe",
+                "userId": "12345",
+            },
+        },
+        "refresh_token": "refresh-token-xyz",
+    }
+
+
+async def test_set_licensing_from_token_response_parses_nested_mwa_token(
+    tmp_path, mocker
+):
+    """Token-response parsing must lift fields out of the nested mwa_token object,
+    fetch entitlements, and auto-select when only one is returned."""
+    app_state = _make_oauth_app_state(tmp_path)
+    mocker.patch.object(
+        mw,
+        "fetch_entitlements",
+        new=AsyncMock(return_value=[{"id": "ent-1", "label": "MATLAB"}]),
+    )
+
+    await app_state.set_licensing_from_token_response(_oauth_token_response())
+
+    lic = app_state.licensing
+    assert lic["type"] == "oauth"
+    assert lic["client_id"] == "mw-cpi-matlab-proxy"
+    assert lic["source_id"] == "mw-cpi-matlab-proxy"
+    assert lic["email_addr"] == "user@example.com"
+    assert lic["first_name"] == "John"
+    assert lic["token"] == "access-token-abc"
+    assert lic["refresh_token"] == "refresh-token-xyz"
+    # A single entitlement is auto-selected.
+    assert lic["entitlement_id"] == "ent-1"
+    # A durable refresh_token_expiry is computed and persisted.
+    assert lic["refresh_token_expiry"] is not None
+
+
+async def test_set_licensing_from_token_response_no_autoselect_when_multiple(
+    tmp_path, mocker
+):
+    """With more than one entitlement, no entitlement is auto-selected."""
+    app_state = _make_oauth_app_state(tmp_path)
+    mocker.patch.object(
+        mw,
+        "fetch_entitlements",
+        new=AsyncMock(
+            return_value=[
+                {"id": "ent-1", "label": "MATLAB"},
+                {"id": "ent-2", "label": "Simulink"},
+            ]
+        ),
+    )
+
+    await app_state.set_licensing_from_token_response(_oauth_token_response())
+
+    assert app_state.licensing["entitlement_id"] is None
+    assert len(app_state.licensing["entitlements"]) == 2
+
+
+async def test_persist_oauth_config_data_writes_clients_array(tmp_path, mocker):
+    """OAuth licensing must persist into a multi-client clients[] array, storing the
+    durable credential (refresh_token + serialized dpop_key) but NOT the access token.
+    """
+    app_state = _make_oauth_app_state(tmp_path)
+    dpop_key = DPoPKey()
+    app_state.settings["dpop_key"] = dpop_key
+    mocker.patch.object(
+        mw,
+        "fetch_entitlements",
+        new=AsyncMock(return_value=[{"id": "ent-1", "label": "MATLAB"}]),
+    )
+
+    await app_state.set_licensing_from_token_response(_oauth_token_response())
+
+    with open(app_state.settings["matlab_config_file"]) as f:
+        cached = json.load(f)
+
+    assert cached["licensing"]["type"] == "oauth"
+    clients = cached["licensing"]["clients"]
+    assert len(clients) == 1
+    entry = clients[0]
+    assert entry["client_id"] == "mw-cpi-matlab-proxy"
+    assert entry["refresh_token"] == "refresh-token-xyz"
+    assert entry["entitlement_id"] == "ent-1"
+    assert entry["dpop_key"]["private_key_pem"].startswith("-----BEGIN PRIVATE KEY")
+    assert entry["matlab"]["version"] == "R2024b"
+    # The ephemeral access token must never be persisted.
+    assert "token" not in entry
+
+
+async def test_persist_oauth_preserves_other_clients(tmp_path, mocker):
+    """Persisting one client must not clobber another integration's cached entry
+    in the shared config file."""
+    app_state = _make_oauth_app_state(tmp_path)
+    mocker.patch.object(
+        mw,
+        "fetch_entitlements",
+        new=AsyncMock(return_value=[{"id": "ent-1", "label": "MATLAB"}]),
+    )
+
+    # Pre-seed the shared file with a different integration's client entry.
+    cfg_file = app_state.settings["matlab_config_file"]
+    cfg_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(cfg_file, "w") as f:
+        json.dump(
+            {
+                "licensing": {
+                    "type": "oauth",
+                    "clients": [
+                        {
+                            "client_id": "some-other-integration",
+                            "refresh_token": "keep-me",
+                        }
+                    ],
+                }
+            },
+            f,
+        )
+
+    await app_state.set_licensing_from_token_response(_oauth_token_response())
+
+    with open(cfg_file) as f:
+        cached = json.load(f)
+    client_ids = {c["client_id"] for c in cached["licensing"]["clients"]}
+    assert client_ids == {"some-other-integration", "mw-cpi-matlab-proxy"}
+
+
+def test_remove_oauth_client_entry_removes_only_matching(tmp_path):
+    """Removing a client entry must drop only that client, leaving others intact."""
+    app_state = _make_oauth_app_state(tmp_path)
+    cfg_file = app_state.settings["matlab_config_file"]
+    cfg_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(cfg_file, "w") as f:
+        json.dump(
+            {
+                "licensing": {
+                    "type": "oauth",
+                    "clients": [
+                        {"client_id": "mw-cpi-matlab-proxy", "refresh_token": "a"},
+                        {"client_id": "some-other-integration", "refresh_token": "b"},
+                    ],
+                }
+            },
+            f,
+        )
+
+    app_state._remove_oauth_client_entry("mw-cpi-matlab-proxy")
+
+    with open(cfg_file) as f:
+        cached = json.load(f)
+    remaining = [c["client_id"] for c in cached["licensing"]["clients"]]
+    assert remaining == ["some-other-integration"]
+
+
+def test_remove_oauth_client_entry_deletes_file_when_empty(tmp_path):
+    """When the last client is removed, the whole cached config file is deleted."""
+    app_state = _make_oauth_app_state(tmp_path)
+    cfg_file = app_state.settings["matlab_config_file"]
+    cfg_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(cfg_file, "w") as f:
+        json.dump(
+            {
+                "licensing": {
+                    "type": "oauth",
+                    "clients": [
+                        {"client_id": "mw-cpi-matlab-proxy", "refresh_token": "a"}
+                    ],
+                }
+            },
+            f,
+        )
+
+    app_state._remove_oauth_client_entry("mw-cpi-matlab-proxy")
+
+    assert cfg_file.exists() is False
+
+
+async def test_init_oauth_from_cache_finds_matching_client_and_refreshes(
+    tmp_path, mocker
+):
+    """Cache restore must locate this client's entry by client_id, load its DPoP key,
+    and refresh to obtain a fresh access token."""
+    app_state = _make_oauth_app_state(tmp_path)
+    dpop_key = DPoPKey()
+    future_expiry = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+
+    # A refresh is always attempted on restore; stub it out.
+    refresh = mocker.patch.object(
+        app_state, "_refresh_oauth_licensing", new=AsyncMock()
+    )
+
+    licensing = {
+        "type": "oauth",
+        "clients": [
+            {
+                "client_id": "mw-cpi-matlab-proxy",
+                "refresh_token": "refresh-abc",
+                "refresh_token_expiry": future_expiry,
+                "entitlement_id": "ent-1",
+                "entitlements": [{"id": "ent-1", "label": "MATLAB"}],
+                "email_addr": "user@example.com",
+                "dpop_key": dpop_key.to_dict(),
+                "matlab": {"version": "R2024b"},
+            }
+        ],
+    }
+
+    await app_state._init_oauth_licensing_from_cache(licensing)
+
+    refresh.assert_awaited_once()
+    assert app_state.licensing["client_id"] == "mw-cpi-matlab-proxy"
+    assert app_state.licensing["refresh_token"] == "refresh-abc"
+    # The persisted DPoP key is restored into settings for reuse on refresh.
+    assert isinstance(app_state.settings["dpop_key"], DPoPKey)
+
+
+async def test_init_oauth_from_cache_no_matching_client_requires_signin(
+    tmp_path, mocker
+):
+    """If no cached entry matches this client_id, licensing is cleared (sign-in required)."""
+    app_state = _make_oauth_app_state(tmp_path)
+    refresh = mocker.patch.object(
+        app_state, "_refresh_oauth_licensing", new=AsyncMock()
+    )
+
+    licensing = {
+        "type": "oauth",
+        "clients": [
+            {"client_id": "some-other-integration", "refresh_token": "refresh-abc"}
+        ],
+    }
+
+    await app_state._init_oauth_licensing_from_cache(licensing)
+
+    assert app_state.licensing is None
+    refresh.assert_not_awaited()
+
+
+async def test_init_oauth_from_cache_expired_refresh_token_requires_signin(
+    tmp_path, mocker
+):
+    """A cached refresh token past its computed expiry short-circuits to sign-in
+    (no doomed refresh call) and drops the entry."""
+    app_state = _make_oauth_app_state(tmp_path)
+    refresh = mocker.patch.object(
+        app_state, "_refresh_oauth_licensing", new=AsyncMock()
+    )
+    remove = mocker.patch.object(app_state, "_remove_oauth_client_entry")
+    past_expiry = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+
+    licensing = {
+        "type": "oauth",
+        "clients": [
+            {
+                "client_id": "mw-cpi-matlab-proxy",
+                "refresh_token": "refresh-abc",
+                "refresh_token_expiry": past_expiry,
+                "dpop_key": DPoPKey().to_dict(),
+            }
+        ],
+    }
+
+    await app_state._init_oauth_licensing_from_cache(licensing)
+
+    assert app_state.licensing is None
+    refresh.assert_not_awaited()
+    remove.assert_called_once_with("mw-cpi-matlab-proxy")
+
+
+async def test_init_oauth_from_cache_ignored_when_no_client_id_configured(
+    tmp_path, mocker
+):
+    """If this config has no oauth_client_id, cached OAuth data is ignored (fall back)."""
+    app_state = _make_oauth_app_state(tmp_path)
+    app_state.settings["oauth_client_id"] = None
+    refresh = mocker.patch.object(
+        app_state, "_refresh_oauth_licensing", new=AsyncMock()
+    )
+
+    licensing = {
+        "type": "oauth",
+        "clients": [
+            {"client_id": "mw-cpi-matlab-proxy", "refresh_token": "refresh-abc"}
+        ],
+    }
+
+    await app_state._init_oauth_licensing_from_cache(licensing)
+
+    assert app_state.licensing is None
+    refresh.assert_not_awaited()

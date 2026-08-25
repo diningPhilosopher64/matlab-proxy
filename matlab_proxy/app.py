@@ -448,6 +448,20 @@ async def device_authorize(req):
     """
     state = req.app["state"]
 
+    # If the MATLAB version could not be determined on startup, the frontend
+    # collects it from the user (via a dropdown) BEFORE starting the flow and sends
+    # it here - mirroring how MHLM sends matlabVersion with set_licensing_info. We
+    # record it now so it is known by the time poll_device_token licenses and starts
+    # MATLAB, which is why the device flow needs no separate version-commit step.
+    try:
+        data = await req.json()
+    except Exception:
+        data = {}
+    if not state.settings.get("matlab_version_determined_on_startup") and data.get(
+        "matlabVersion"
+    ):
+        state.settings["matlab_version"] = data.get("matlabVersion")
+
     # Generate PKCE parameters (the code_verifier is used during token exchange).
     code_verifier = secrets.token_urlsafe(32)
     code_challenge_bytes = hashlib.sha256(code_verifier.encode()).digest()
@@ -605,7 +619,7 @@ async def poll_device_token(req):
                 token_url, device_code, client_id, code_verifier, dpop_key=dpop_key
             )
 
-            await state.set_licensing_oauth_with_token_response(token_response)
+            await state.set_licensing_from_token_response(token_response)
             _clear_device_state(state)
 
             await __start_matlab_if_licensed(state)
@@ -663,7 +677,7 @@ async def licensing_info_delete(req):
     # For OAuth, remove only the current client's entry from the shared cache
     # (other integrations' tokens must be preserved), then clear in-memory state.
     if state.licensing["type"] == "oauth":
-        state.remove_oauth_client_entry(state.licensing.get("client_id"))
+        state._remove_oauth_client_entry(state.licensing.get("client_id"))
         state.unset_licensing()
         return create_status_response(req.app)
 

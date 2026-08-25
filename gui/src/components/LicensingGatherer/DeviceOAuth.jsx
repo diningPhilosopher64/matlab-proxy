@@ -1,9 +1,13 @@
 // Copyright 2025-2026 The MathWorks, Inc.
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { useInterval } from 'react-use';
 import { requestServerStatus } from '../../actionCreators';
+import {
+    selectMatlabVersionOnPath,
+    selectSupportedMatlabVersions
+} from '../../selectors';
 import './ExistingLicense.css';
 import './DeviceOAuth.css';
 
@@ -17,6 +21,12 @@ const formatCountdown = (totalSeconds) => {
 
 function DeviceOAuth () {
     const dispatch = useDispatch();
+    const matlabVersionOnPath = useSelector(selectMatlabVersionOnPath);
+    const supportedMatlabVersions = useSelector(selectSupportedMatlabVersions);
+    // Default the dropdown to the newest supported version, matching MHLM.
+    const [selectedMatlabVersion, setSelectedMatlabVersion] = useState(
+        supportedMatlabVersions[supportedMatlabVersions.length - 1]
+    );
     const [deviceInfo, setDeviceInfo] = useState(null);
     // checking, idle, authorizing, pending, success, error.
     // Starts as 'checking' because on mount we ask the server whether a device
@@ -161,14 +171,21 @@ function DeviceOAuth () {
         startPolling();
     }, [startPolling]);
 
+    // Kick off the device flow. The MATLAB version is required in subsequent steps
+    // on the server side, so if it could not be determined we send the version the
+    // user chose in the dropdown along with the request - mirroring how MHLM sends
+    // matlabVersion with set_licensing_info. The device_code screen is only shown
+    // after this returns, so the version is collected before the user code appears.
     const handleStartDeviceFlow = useCallback(async () => {
         setStatus('authorizing');
         setErrorMessage('');
 
         try {
+            const body = matlabVersionOnPath ? {} : { matlabVersion: selectedMatlabVersion };
             const response = await fetch('./device_authorize', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
             });
 
             if (!response.ok) {
@@ -189,7 +206,19 @@ function DeviceOAuth () {
             setStatus('error');
             setErrorMessage(error.message);
         }
-    }, [startPolling]);
+    }, [startPolling, matlabVersionOnPath, selectedMatlabVersion]);
+
+    // The "Start Device Authorization" button. If the MATLAB version could not be
+    // determined, first route to the version dropdown and collect it; only once the
+    // user submits that do we call the device_authorize endpoint. If the version is
+    // known, start the flow immediately.
+    const handleStartClick = useCallback(() => {
+        if (matlabVersionOnPath) {
+            handleStartDeviceFlow();
+        } else {
+            setStatus('select_matlab_version');
+        }
+    }, [matlabVersionOnPath, handleStartDeviceFlow]);
 
     const copyUserCode = () => {
         if (deviceInfo?.user_code) {
@@ -215,10 +244,13 @@ function DeviceOAuth () {
         );
     }
 
-    if (status === 'idle' || status === 'authorizing') {
+    // Plain start screen: shown when the version is already known (idle, or while
+    // authorizing after the click). The unknown-version case is handled by the
+    // dropdown branch below, so it is excluded here even while authorizing.
+    if (status === 'idle' || (status === 'authorizing' && matlabVersionOnPath)) {
         return (
             <div id="DeviceOAuth">
-                <form aria-label="Device authorization" onSubmit={(e) => { e.preventDefault(); handleStartDeviceFlow(); }}>
+                <form aria-label="Device authorization" onSubmit={(e) => { e.preventDefault(); handleStartClick(); }}>
                     <div className='form-group'>
                         <p>Sign in to your MathWorks Account using the device code flow.</p>
                         <br/>
@@ -228,6 +260,37 @@ function DeviceOAuth () {
                             className="btn btn_color_blue"
                             disabled={status === 'authorizing'}
                         />
+                    </div>
+                </form>
+            </div>
+        );
+    }
+
+    // matlab version is required in subsequent steps on the server side. If it
+    // could not be determined, collect it here - before the device flow is started
+    // and the user code is shown - then start the flow (sending the chosen version)
+    // on submit. The 'authorizing' guard keeps the button showing progress while
+    // device_authorize is in flight.
+    if (status === 'select_matlab_version' || status === 'authorizing') {
+        return (
+            <div id="DeviceOAuth">
+                <form aria-label="Choose MATLAB version" onSubmit={(e) => { e.preventDefault(); handleStartDeviceFlow(); }}>
+                    <div className='form-group'>
+                        <p>
+                            <b>Note</b>: The version of MATLAB could not be determined. Choose the version of MATLAB you are attempting to start.
+                        </p>
+                        <br/>
+                        <select value={selectedMatlabVersion} onChange={(e) => setSelectedMatlabVersion(e.target.value)} disabled={status === 'authorizing'}>
+                            {supportedMatlabVersions.map((matlabVersion, index) => (
+                                <option key={index} value={matlabVersion}>
+                                    {matlabVersion}
+                                </option>
+                            ))}
+                        </select>
+
+                        <br/><br/>
+
+                        <input type="submit" id="startMatlabBtn" value={status === 'authorizing' ? 'Starting...' : 'Proceed'} className="btn btn_color_blue" disabled={status === 'authorizing'} />
                     </div>
                 </form>
             </div>
@@ -296,8 +359,14 @@ function DeviceOAuth () {
         return (
             <div id="DeviceOAuth">
                 <h2>Authorization Failed</h2>
-                <p>{errorMessage}</p>
-                <button type="button" onClick={() => setStatus('idle')} className="btn btn_color_blue">Try Again</button>
+                {/* Surface the failure in the same alert treatment the Information
+                    panel uses, so the actual error message stands out instead of
+                    reading as plain body text. */}
+                <div className="error-container alert alert-danger">
+                    <p><strong>Error</strong></p>
+                    <div className="error-text"><pre style={{ backgroundColor: 'hsla(0,0%,100%,0)', border: 'none', fontFamily: 'inherit', fontSize: '15px' }}>{errorMessage}</pre></div>
+                </div>
+                <button type="button" onClick={() => setStatus('idle')} className="btn btn_color_blue device-oauth-try-again">Try Again</button>
             </div>
         );
     }
