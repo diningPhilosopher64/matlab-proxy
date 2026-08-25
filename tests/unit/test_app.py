@@ -10,7 +10,7 @@ from datetime import timedelta, timezone
 from http import HTTPStatus, cookies
 
 import pytest
-from aiohttp import WSMsgType
+from aiohttp import WSMsgType, web
 from aiohttp.web import WebSocketResponse
 from multidict import CIMultiDict
 
@@ -1449,6 +1449,88 @@ async def test_device_authorize_ignores_matlab_version_when_determined_on_startu
 
     assert resp.status == HTTPStatus.OK
     assert settings["matlab_version"] == "R2024b"
+
+
+async def test_licensing_info_delete_revokes_oauth_token(
+    patch_authenticate_access_decorator, mocker
+):
+    """Signing out of an OAuth session must revoke the refresh token server-side
+    (best-effort) before the local client entry and in-memory state are cleared."""
+    state = mocker.MagicMock()
+    state.settings = {
+        "oauth_endpoint": "https://signin.mathworks.com",
+        "matlab_version": "R2024b",
+        "matlab_version_determined_on_startup": True,
+    }
+    state.licensing = {
+        "type": "oauth",
+        "client_id": "mw-cpi-matlab-proxy",
+        "refresh_token": "refresh-to-revoke",
+        "dpop_key": "the-dpop-key",
+    }
+    state.stop_matlab = mocker.AsyncMock()
+
+    req = mocker.MagicMock()
+    req.app = {"state": state}
+
+    revoke = mocker.patch(
+        "matlab_proxy.app.mw.revoke_oauth_token", new=mocker.AsyncMock()
+    )
+    # create_status_response reads many state fields; stub it out - this test only
+    # cares that revoke is called and the local entry/state are cleared.
+    mocker.patch(
+        "matlab_proxy.app.create_status_response",
+        return_value=web.json_response({}),
+    )
+
+    await app.licensing_info_delete(req)
+
+    # Revoked with the stored refresh token, client_id and DPoP key.
+    revoke.assert_awaited_once_with(
+        "https://signin.mathworks.com/oauth2/v1/oauth/revoke",
+        "mw-cpi-matlab-proxy",
+        "refresh-to-revoke",
+        dpop_key="the-dpop-key",
+    )
+    # Only this client's entry is removed, then in-memory licensing is cleared.
+    state._remove_oauth_client_entry.assert_called_once_with("mw-cpi-matlab-proxy")
+    state.unset_licensing.assert_called_once()
+
+
+async def test_licensing_info_delete_oauth_without_refresh_token_skips_revoke(
+    patch_authenticate_access_decorator, mocker
+):
+    """If there is no stored refresh token, sign-out must not attempt a revoke,
+    but must still clear the local entry and in-memory state."""
+    state = mocker.MagicMock()
+    state.settings = {
+        "oauth_endpoint": "https://signin.mathworks.com",
+        "matlab_version": "R2024b",
+        "matlab_version_determined_on_startup": True,
+    }
+    state.licensing = {
+        "type": "oauth",
+        "client_id": "mw-cpi-matlab-proxy",
+        "refresh_token": None,
+    }
+    state.stop_matlab = mocker.AsyncMock()
+
+    req = mocker.MagicMock()
+    req.app = {"state": state}
+
+    revoke = mocker.patch(
+        "matlab_proxy.app.mw.revoke_oauth_token", new=mocker.AsyncMock()
+    )
+    mocker.patch(
+        "matlab_proxy.app.create_status_response",
+        return_value=web.json_response({}),
+    )
+
+    await app.licensing_info_delete(req)
+
+    revoke.assert_not_awaited()
+    state._remove_oauth_client_entry.assert_called_once_with("mw-cpi-matlab-proxy")
+    state.unset_licensing.assert_called_once()
 
 
 async def test_device_authorize_handles_empty_body(

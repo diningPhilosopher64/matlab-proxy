@@ -209,9 +209,18 @@ async def device_authorize(
     """
     device_auth_endpoint = f"{oauth_host}/oauth2/v1/oauth/device/authorize"
 
+    # MWAJ elevation is scope-driven: adding "token_type:mwaj" requests a
+    # long-running (90 day) access token instead of the default MWAS (~24 hours).
+    # It comes with the security risk of being stolen and used by an attacker for
+    # an extended period, so it is opt-in via MWI_ENABLE_LONG_RUNNING_SESSION.
+    scope = "openid profile email"
+    if mwi_env.Experimental.is_long_running_session_enabled():
+        scope += " token_type:mwaj"
+    logger.debug(f"Requesting device authorization with scope: {scope}")
+
     payload = {
         "client_id": client_id,
-        "scope": "openid profile email",
+        "scope": scope,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
         "source_id": source_id,
@@ -325,6 +334,11 @@ async def exchange_device_token(
             error = error_response.get("error", f"HTTP {resp.status}")
             raise OnlineLicensingError(f"Token exchange failed: {error}")
 
+        from pprint import pprint
+
+        print("\n\n Hello \n\n")
+        pprint(await resp.json())
+
         return await resp.json()
 
 
@@ -368,6 +382,53 @@ async def refresh_oauth_token(refresh_url, client_id, refresh_token, dpop_key=No
             error = error_response.get("error", f"HTTP {resp.status}")
             raise OnlineLicensingError(f"Token refresh failed: {error}")
         return await resp.json()
+
+
+async def revoke_oauth_token(revoke_url, client_id, refresh_token, dpop_key=None):
+    """Revoke an OAuth refresh token (RFC 7009), invalidating the server-side session.
+
+    Called on sign-out for the device flow. matlab-proxy is a public/DPoP client,
+    so revocation is authenticated with a DPoP proof signed by the SAME key that
+    was used during device authorization (no client_secret).
+
+    Per RFC 7009 the server always returns HTTP 200, so this is best-effort: a
+    non-200 or network error is logged but not raised - local licensing state is
+    cleared regardless.
+
+    Args:
+        revoke_url (str): The OAuth revoke endpoint URL.
+        client_id (str): The OAuth client id that owns the token.
+        refresh_token (str): The refresh token to revoke.
+        dpop_key (DPoPKey, optional): MUST be the same key used during device
+            authorization (the server verifies the jkt binding).
+
+    Returns:
+        bool: True if the server acknowledged the request (HTTP 200), else False.
+    """
+    payload = {
+        "token": refresh_token,
+        "token_type_hint": "refresh_token",
+        "client_id": client_id,
+    }
+
+    headers = {"Content-Type": "application/json"}
+    if dpop_key:
+        headers["DPoP"] = dpop_key.generate_proof("POST", revoke_url)
+
+    try:
+        async with (
+            aiohttp.ClientSession(trust_env=True) as client_session,
+            client_session.post(revoke_url, json=payload, headers=headers) as resp,
+        ):
+            if resp.status != 200:
+                logger.warning(f"Token revocation returned HTTP {resp.status}.")
+                return False
+            print("\n\n\n Successfully hit the revoke endpoint....")
+            return True
+    except Exception as e:
+        # Best-effort: never block sign-out on a revoke failure.
+        logger.warning(f"Token revocation request failed: {e}")
+        return False
 
 
 def range_matlab_connector_ports():

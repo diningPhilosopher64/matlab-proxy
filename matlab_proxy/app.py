@@ -674,9 +674,19 @@ async def licensing_info_delete(req):
     ):
         state.settings["matlab_version"] = None
 
-    # For OAuth, remove only the current client's entry from the shared cache
-    # (other integrations' tokens must be preserved), then clear in-memory state.
+    # For OAuth, revoke the refresh token server-side (best-effort) before
+    # discarding it, then remove only the current client's entry from the shared
+    # cache (other integrations' tokens must be preserved), then clear in-memory state.
     if state.licensing["type"] == "oauth":
+        refresh_token = state.licensing.get("refresh_token")
+        if refresh_token:
+            revoke_url = f"{state.settings['oauth_endpoint']}/oauth2/v1/oauth/revoke"
+            await mw.revoke_oauth_token(
+                revoke_url,
+                state.licensing.get("client_id"),
+                refresh_token,
+                dpop_key=state.licensing.get("dpop_key"),
+            )
         state._remove_oauth_client_entry(state.licensing.get("client_id"))
         state.unset_licensing()
         return create_status_response(req.app)

@@ -10,6 +10,7 @@ from collections import namedtuple
 from datetime import timedelta, timezone
 from http import HTTPStatus
 
+import aiohttp
 import pytest
 
 from matlab_proxy import settings
@@ -544,6 +545,48 @@ async def test_device_authorize_returns_json(mocker):
     assert dpop_key.calls == [("POST", args[0])]
 
 
+async def test_device_authorize_uses_default_scope_by_default(mocker):
+    """device_authorize requests the base scope (no MWAJ) by default."""
+    mock_resp = MockResponse(
+        ok=True,
+        payload={"device_code": "x", "user_code": "y", "verification_uri": "z"},
+        status=HTTPStatus.OK,
+        headers={"Content-Type": "application/json"},
+    )
+    mocked = mocker.patch("aiohttp.ClientSession.post", return_value=mock_resp)
+    mocker.patch.dict(os.environ, {}, clear=False)
+    os.environ.pop("MWI_ENABLE_LONG_RUNNING_SESSION", None)
+
+    await mw.device_authorize(
+        OAUTH_HOST, OAUTH_CLIENT_ID, "code-challenge", "source-id"
+    )
+
+    _, _, kwargs = mocked.mock_calls[0]
+    assert kwargs["json"]["scope"] == "openid profile email"
+
+
+async def test_device_authorize_requests_mwaj_scope_when_long_running_enabled(mocker):
+    """device_authorize appends token_type:mwaj to the scope when long-running
+    session support is enabled."""
+    mock_resp = MockResponse(
+        ok=True,
+        payload={"device_code": "x", "user_code": "y", "verification_uri": "z"},
+        status=HTTPStatus.OK,
+        headers={"Content-Type": "application/json"},
+    )
+    mocked = mocker.patch("aiohttp.ClientSession.post", return_value=mock_resp)
+    mocker.patch.dict(
+        os.environ, {"MWI_ENABLE_LONG_RUNNING_SESSION": "True"}, clear=False
+    )
+
+    await mw.device_authorize(
+        OAUTH_HOST, OAUTH_CLIENT_ID, "code-challenge", "source-id"
+    )
+
+    _, _, kwargs = mocked.mock_calls[0]
+    assert kwargs["json"]["scope"] == "openid profile email token_type:mwaj"
+
+
 async def test_device_authorize_rejects_redirect(mocker):
     """A redirect from the device endpoint means device flow is unavailable -> error."""
     mock_resp = MockResponse(
@@ -695,6 +738,56 @@ async def test_refresh_oauth_token_error(mocker):
         await mw.refresh_oauth_token(
             f"{OAUTH_HOST}/oauth2/v1/oauth/refresh", OAUTH_CLIENT_ID, "old-refresh"
         )
+
+
+async def test_revoke_oauth_token_success(mocker):
+    """revoke_oauth_token returns True on a 200 and sends a DPoP proof + revoke body."""
+    mock_resp = MockResponse(ok=True, payload={}, status=HTTPStatus.OK)
+    mocked = mocker.patch("aiohttp.ClientSession.post", return_value=mock_resp)
+    dpop_key = _FakeDPoPKey()
+    revoke_url = f"{OAUTH_HOST}/oauth2/v1/oauth/revoke"
+
+    result = await mw.revoke_oauth_token(
+        revoke_url, OAUTH_CLIENT_ID, "refresh-to-revoke", dpop_key=dpop_key
+    )
+
+    assert result is True
+    _, args, kwargs = mocked.mock_calls[0]
+    assert args[0] == revoke_url
+    assert kwargs["headers"]["DPoP"] == f"dpop-proof-for-POST-{revoke_url}"
+    # RFC 7009 body: the refresh token and its type hint.
+    assert kwargs["json"]["token"] == "refresh-to-revoke"
+    assert kwargs["json"]["token_type_hint"] == "refresh_token"
+    assert kwargs["json"]["client_id"] == OAUTH_CLIENT_ID
+    assert dpop_key.calls == [("POST", revoke_url)]
+
+
+async def test_revoke_oauth_token_non_200_returns_false(mocker):
+    """A non-200 revoke response is best-effort: returns False, does not raise."""
+    mock_resp = MockResponse(
+        ok=False, status=HTTPStatus.INTERNAL_SERVER_ERROR, text="error"
+    )
+    mocker.patch("aiohttp.ClientSession.post", return_value=mock_resp)
+
+    result = await mw.revoke_oauth_token(
+        f"{OAUTH_HOST}/oauth2/v1/oauth/revoke", OAUTH_CLIENT_ID, "refresh-to-revoke"
+    )
+
+    assert result is False
+
+
+async def test_revoke_oauth_token_network_error_returns_false(mocker):
+    """A network error during revoke is swallowed (best-effort): returns False."""
+    mocker.patch(
+        "aiohttp.ClientSession.post",
+        side_effect=aiohttp.ClientError("boom"),
+    )
+
+    result = await mw.revoke_oauth_token(
+        f"{OAUTH_HOST}/oauth2/v1/oauth/revoke", OAUTH_CLIENT_ID, "refresh-to-revoke"
+    )
+
+    assert result is False
 
 
 def test_parse_mhlm_no_error():
