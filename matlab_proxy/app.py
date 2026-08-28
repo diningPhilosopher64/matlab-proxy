@@ -522,7 +522,7 @@ async def device_authorize(req):
     except Exception as e:
         logger.error(f"Device authorization error: {e}")
         return web.json_response(
-            {"error": f"Device authorization error: {str(e)}"},
+            {"error": f"Device authorization error: {e!s}"},
             status=502,
         )
 
@@ -645,7 +645,7 @@ async def poll_device_token(req):
             return web.json_response(
                 {
                     "status": "error",
-                    "error": f"Token exchange failed: {str(e)}. Please try again.",
+                    "error": f"Token exchange failed: {e!s}. Please try again.",
                 },
                 status=500,
             )
@@ -1173,6 +1173,15 @@ async def cleanup_background_tasks(app):
     await util.cancel_tasks(server_tasks)
 
 
+def _create_app_runner(app):
+    """Create an aiohttp runner that accepts browser cookie headers."""
+    return web.AppRunner(
+        app,
+        access_log=logger if mwi_env.is_web_logging_enabled() else None,
+        max_field_size=constants.MAX_HTTP_HEADER_FIELD_SIZE,
+    )
+
+
 def configure_and_start(app):
     """Configure the site for the app and update app with appropriate values
 
@@ -1197,9 +1206,7 @@ def configure_and_start(app):
     )
 
     # Setup runner
-    runner = web.AppRunner(
-        app, access_log=logger if mwi_env.is_web_logging_enabled() else None
-    )
+    runner = _create_app_runner(app)
     loop.run_until_complete(runner.setup())
 
     # Prepare site to start, then set port of the app.

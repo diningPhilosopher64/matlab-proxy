@@ -1366,6 +1366,7 @@ def _oauth_token_response(email="user@example.com", entitlements_single=True):
             },
         },
         "refresh_token": "refresh-token-xyz",
+        "refresh_expires_in": 3600,
     }
 
 
@@ -1381,7 +1382,9 @@ async def test_set_licensing_from_token_response_parses_nested_mwa_token(
         new=AsyncMock(return_value=[{"id": "ent-1", "label": "MATLAB"}]),
     )
 
+    before_expiry = datetime.now(timezone.utc) + timedelta(seconds=3600)
     await app_state.set_licensing_from_token_response(_oauth_token_response())
+    after_expiry = datetime.now(timezone.utc) + timedelta(seconds=3600)
 
     lic = app_state.licensing
     assert lic["type"] == "oauth"
@@ -1393,8 +1396,9 @@ async def test_set_licensing_from_token_response_parses_nested_mwa_token(
     assert lic["refresh_token"] == "refresh-token-xyz"
     # A single entitlement is auto-selected.
     assert lic["entitlement_id"] == "ent-1"
-    # A durable refresh_token_expiry is computed and persisted.
-    assert lic["refresh_token_expiry"] is not None
+    # The durable expiry comes from the server-provided lifetime.
+    refresh_token_expiry = datetime.fromisoformat(lic["refresh_token_expiry"])
+    assert before_expiry <= refresh_token_expiry <= after_expiry
 
 
 async def test_set_licensing_from_token_response_no_autoselect_when_multiple(

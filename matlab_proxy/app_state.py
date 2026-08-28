@@ -9,8 +9,9 @@ import sys
 import time
 import uuid
 from collections import deque
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-from typing import Callable, Final, Optional
+from typing import Final
 
 from matlab_proxy import util
 from matlab_proxy.constants import (
@@ -18,7 +19,6 @@ from matlab_proxy.constants import (
     CONNECTOR_SECUREPORT_FILENAME,
     IS_CONCURRENCY_CHECK_ENABLED,
     MATLAB_LOGS_FILE_NAME,
-    OAUTH_REFRESH_TOKEN_LIFESPAN_SECONDS,
     USER_CODE_OUTPUT_FILE_NAME,
     ExitReason,
 )
@@ -820,7 +820,7 @@ class AppState:
 
         return True
 
-    def _get_token_auth_headers(self) -> Optional[dict]:
+    def _get_token_auth_headers(self) -> dict | None:
         """Returns token info as headers if authentication is enabled.
 
         Returns:
@@ -855,10 +855,10 @@ class AppState:
             if not matlab_ready_file:
                 self.set_matlab_state("down")
                 await self.matlab_state_updater_lock.release()
-                return None
+                return
 
             await self.matlab_state_updater_lock.release()
-            return None
+            return
 
         # If the matlab_ready_file path is constructed and is not yet created by the embedded connector.
         if matlab_ready_file and not matlab_ready_file.exists():
@@ -868,10 +868,10 @@ class AppState:
             if matlab_ready_file and not matlab_ready_file.exists():
                 self.set_matlab_state("starting")
                 await self.matlab_state_updater_lock.release()
-                return None
+                return
 
             await self.matlab_state_updater_lock.release()
-            return None
+            return
 
         # Proceed to query the Embedded Connector about its state and update MATLAB and its 'busy' state.
 
@@ -977,16 +977,15 @@ class AppState:
             self.licensing.get("entitlement_id") if self.licensing else None
         )
 
-        # The refresh token is the durable credential; compute its expiry from the
-        # server-configured lifespan (the server does not return it - see
-        # OAUTH_REFRESH_TOKEN_LIFESPAN_SECONDS). This is what init_licensing() uses
-        # on a later startup to decide whether the cached refresh token is still
-        # usable. The access token's own expiry (mwa_token.expirationDate) is
-        # short-lived (~24h) and intentionally NOT persisted - it is re-derived by
-        # refreshing at startup, mirroring the MHLM identity-token model.
+        # The refresh token is the durable credential. The OAuth server returns
+        # its lifetime in seconds, which we convert to an absolute timestamp for
+        # init_licensing() to check on a later startup. The access token's own
+        # expiry (mwa_token.expirationDate) is short-lived and intentionally NOT
+        # persisted - it is re-derived by refreshing at startup, mirroring the
+        # MHLM identity-token model.
         refresh_token_expiry = (
             datetime.now(timezone.utc)
-            + timedelta(seconds=OAUTH_REFRESH_TOKEN_LIFESPAN_SECONDS)
+            + timedelta(seconds=token_response["refresh_expires_in"])
         ).isoformat()
 
         self.licensing = {

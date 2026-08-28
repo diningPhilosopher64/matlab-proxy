@@ -11,6 +11,7 @@ from http import HTTPStatus, cookies
 
 import pytest
 from aiohttp import WSMsgType, web
+from aiohttp.test_utils import TestServer
 from aiohttp.web import WebSocketResponse
 from multidict import CIMultiDict
 
@@ -239,9 +240,6 @@ async def async_configure_and_start(app_instance):
     2. The app.py configure_and_start uses loop.run_until_complete() which would block the test event loop
     3. Using 'await' instead allows the test event loop to continue processing other tasks
     """
-    # Get web logger
-    web_logger = None if not mwi_env.is_web_logging_enabled() else app.logger
-
     # Setup the session storage,
     # Uniqified per session to prevent multiple proxy servers on the same FQDN from interfering with each other.
     uniqify_session_cookie = app.secrets.token_hex()
@@ -255,7 +253,7 @@ async def async_configure_and_start(app_instance):
     )
 
     # Setup runner
-    runner = app.web.AppRunner(app_instance, access_log=web_logger)
+    runner = app._create_app_runner(app_instance)
 
     await runner.setup()
 
@@ -302,12 +300,19 @@ class FakeServer:
     async def __aenter__(self):
         self.server = app.create_app()
         self.server = await async_configure_and_start(self.server)
-        self.client = await self.aiohttp_client(self.server)
+        self.client = await self.aiohttp_client(ConfiguredTestServer(self.server))
         return self.client
 
     async def __aexit__(self, exc_type, exc_value, exc_traceback):
         await self.server.shutdown()
         await self.server.cleanup()
+
+
+class ConfiguredTestServer(TestServer):
+    """Test server using matlab-proxy's production AppRunner configuration."""
+
+    async def _make_runner(self, **kwargs):
+        return app._create_app_runner(self.app)
 
 
 @pytest.fixture
@@ -381,6 +386,15 @@ async def test_get_status_route(test_server):
     """
 
     resp = await test_server.get("/get_status")
+    assert resp.status == HTTPStatus.OK
+
+
+async def test_request_with_large_cookie_header(test_server):
+    """Accept accumulated session cookies exceeding aiohttp's default limit."""
+    cookie_header = "matlab-proxy-session-stale=" + ("x" * 9_000)
+
+    resp = await test_server.get("/get_status", headers={"Cookie": cookie_header})
+
     assert resp.status == HTTPStatus.OK
 
 
