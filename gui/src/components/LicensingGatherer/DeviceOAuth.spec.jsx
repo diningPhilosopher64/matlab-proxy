@@ -35,7 +35,7 @@ describe('DeviceOAuth Component', () => {
 
         const { getByText } = render(<DeviceOAuth />, { initialState });
 
-        expect(getByText('Checking sign-in status...')).toBeInTheDocument();
+        expect(getByText('Waiting for sign-in...')).toBeInTheDocument();
     });
 
     it('should show the Start screen when the mount poll reports idle', async () => {
@@ -134,6 +134,26 @@ describe('DeviceOAuth Component', () => {
         });
     });
 
+    it('should show the spinner beside the waiting-for-sign-in message while pending', async () => {
+        fetchMock.get('./poll_device_token', {
+            body: {
+                status: 'pending',
+                user_code: 'WXYZ-1234',
+                verification_uri: 'https://www.mathworks.com/mwlogin',
+                expires_in: 300
+            },
+            headers: { 'content-type': 'application/json' }
+        });
+
+        const { findByText, getByText, queryByText } = render(<DeviceOAuth />, { initialState });
+
+        await findByText('WXYZ-1234');
+        const waitingMessage = getByText('Waiting for sign-in...');
+        expect(waitingMessage.querySelector('.device-oauth-spinner')).not.toBeNull();
+        expect(queryByText('Waiting for you to complete authorization in your browser...')).not.toBeInTheDocument();
+        expect(queryByText('Checking for authorization...')).not.toBeInTheDocument();
+    });
+
     it('should show the success screen and navigate when the poll reports success', async () => {
         fetchMock.get('./poll_device_token', {
             body: { status: 'success' },
@@ -148,9 +168,26 @@ describe('DeviceOAuth Component', () => {
         });
     });
 
-    it('should show the error screen when the mount poll reports an error', async () => {
+    it('should show the code-expired heading when the mount poll reports device code expiry', async () => {
         fetchMock.get('./poll_device_token', {
-            body: { status: 'error', error: 'Device code expired' },
+            status: 410,
+            body: { status: 'error', error: 'The authorization request is no longer valid' },
+            headers: { 'content-type': 'application/json' }
+        });
+
+        const { getByText } = render(<DeviceOAuth />, { initialState });
+
+        await waitFor(() => {
+            expect(getByText('Code expired')).toBeInTheDocument();
+            expect(getByText('The authorization request is no longer valid')).toBeInTheDocument();
+        });
+        expect(() => getByText('Authorization Failed')).toThrow();
+    });
+
+    it('should keep the authorization-failed heading for other poll errors', async () => {
+        fetchMock.get('./poll_device_token', {
+            status: 502,
+            body: { status: 'error', error: 'Failed to reach OAuth server' },
             headers: { 'content-type': 'application/json' }
         });
 
@@ -158,8 +195,9 @@ describe('DeviceOAuth Component', () => {
 
         await waitFor(() => {
             expect(getByText('Authorization Failed')).toBeInTheDocument();
-            expect(getByText('Device code expired')).toBeInTheDocument();
+            expect(getByText('Failed to reach OAuth server')).toBeInTheDocument();
         });
+        expect(() => getByText('Code expired')).toThrow();
     });
 
     it('should copy the user code to the clipboard when Copy is clicked', async () => {

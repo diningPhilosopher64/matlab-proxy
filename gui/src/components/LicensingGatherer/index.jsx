@@ -62,7 +62,7 @@ function LicensingGatherer () {
     // When the device code tab is also shown, disambiguate the MHLM tab as the
     // browser-based break-glass option.
     const mhlmTabLabel = useDeviceCode
-        ? 'Online License Manager (Browser)'
+        ? 'Online License Manager (Classic)'
         : 'Online License Manager';
 
     return (
@@ -88,7 +88,7 @@ function LicensingGatherer () {
                                             onClick={handleDeviceOauthTabClick}
                                             role="tab"
                                             aria-controls="deviceOauth"
-                                            aria-expanded={deviceOauthAriaExpanded}>Online License Manager</a>
+                                            aria-expanded={deviceOauthAriaExpanded}>Sign In</a>
                                     </li>
                                 )}
                                 <li role="presentation" className={mhlmActive}>
@@ -147,7 +147,7 @@ function LicensingGatherer () {
                                             target="_blank"
                                             rel="noopener noreferrer"
                                         >
-                                            MATLAB Licensing information
+                                            MATLAB Licensing information (GitHub)
                                         </a>
                                     </p>
                                 </div>

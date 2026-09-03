@@ -40,9 +40,12 @@ function Information ({
     let info;
     switch (licensingInfo?.type) {
         case 'mhlm':
-        case 'oauth':
             info = {
                 label: `Online License Manager (${licensingInfo.emailAddress})`
+            };
+        case 'oauth':
+            info = {
+                label: `MathWorks Account (${licensingInfo.emailAddress})`
             };
             break;
         case 'nlm':

@@ -62,10 +62,9 @@
     text-align: center;
 }
 
-/* "Expires in ..." on the left, polling status on the right. */
+/* Device-code expiry countdown. */
 #DeviceOAuth .device-oauth-footer {
     display: flex;
-    justify-content: space-between;
     color: #6c6c6c;
     font-size: 13px;
 }
@@ -95,6 +94,9 @@
 }
 
 #DeviceOAuth .device-oauth-waiting {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     margin-top: 15px;
     color: #6c6c6c;
 }

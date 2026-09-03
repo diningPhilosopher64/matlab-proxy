@@ -34,6 +34,7 @@ function DeviceOAuth () {
     // component's in-memory state) before deciding what to show.
     const [status, setStatus] = useState('checking');
     const [errorMessage, setErrorMessage] = useState('');
+    const [isDeviceCodeExpired, setIsDeviceCodeExpired] = useState(false);
     const [copied, setCopied] = useState(false);
     // Seconds left before the device code expires, shown as a live countdown.
     const [remainingSecs, setRemainingSecs] = useState(null);
@@ -78,7 +79,7 @@ function DeviceOAuth () {
     // first time we learn a flow is pending, this hydrates the UI (code, URL,
     // countdown) from the fields the server echoes on every pending poll - which
     // is what lets a page refresh mid-flow resume instead of resetting.
-    const applyPollData = useCallback((data) => {
+    const applyPollData = useCallback((data, responseStatus) => {
         if (!mountedRef.current) { return false; }
 
         if (data.status === 'success') {
@@ -115,6 +116,8 @@ function DeviceOAuth () {
         if (data.status === 'error') {
             setStatus('error');
             setErrorMessage(data.error || 'Authorization failed');
+            // poll_device_token reserves 410 Gone for an expired device code.
+            setIsDeviceCodeExpired(responseStatus === 410);
             return false;
         }
 
@@ -136,7 +139,8 @@ function DeviceOAuth () {
 
             if (deadlineRef.current && Date.now() > deadlineRef.current) {
                 setStatus('error');
-                setErrorMessage('Device code expired. Please try again.');
+                setErrorMessage('The code expired before sign-in was completed.');
+                setIsDeviceCodeExpired(true);
                 return;
             }
 
@@ -148,7 +152,7 @@ function DeviceOAuth () {
 
                 // Frontend polls every 1 second; the backend rate-limits the
                 // actual calls to the OAuth server.
-                if (applyPollData(data)) {
+                if (applyPollData(data, response.status)) {
                     pollTimeoutRef.current = setTimeout(poll, 1000);
                 }
             } catch (error) {
@@ -179,6 +183,7 @@ function DeviceOAuth () {
     const handleStartDeviceFlow = useCallback(async () => {
         setStatus('authorizing');
         setErrorMessage('');
+        setIsDeviceCodeExpired(false);
 
         try {
             const body = matlabVersionOnPath ? {} : { matlabVersion: selectedMatlabVersion };
@@ -205,6 +210,7 @@ function DeviceOAuth () {
         } catch (error) {
             setStatus('error');
             setErrorMessage(error.message);
+            setIsDeviceCodeExpired(false);
         }
     }, [startPolling, matlabVersionOnPath, selectedMatlabVersion]);
 
@@ -238,7 +244,7 @@ function DeviceOAuth () {
             <div id="DeviceOAuth">
                 <div className="device-oauth-checking">
                     <span className="device-oauth-spinner" aria-hidden="true"></span>
-                    Checking sign-in status...
+                    Waiting for sign-in...
                 </div>
             </div>
         );
@@ -252,11 +258,11 @@ function DeviceOAuth () {
             <div id="DeviceOAuth">
                 <form aria-label="Device authorization" onSubmit={(e) => { e.preventDefault(); handleStartClick(); }}>
                     <div className='form-group'>
-                        <p>Sign in to your MathWorks Account using the device code flow.</p>
+                        <p>Sign in to your MathWorks Account to start MATLAB. You will receive a security code.</p>
                         <br/>
                         <input
                             type="submit"
-                            value={status === 'authorizing' ? 'Starting...' : 'Start Device Authorization'}
+                            value={status === 'authorizing' ? 'Starting...' : 'Sign in'}
                             className="btn btn_color_blue"
                             disabled={status === 'authorizing'}
                         />
@@ -301,10 +307,10 @@ function DeviceOAuth () {
         const verificationUrl = deviceInfo.verification_uri_complete || deviceInfo.verification_uri;
         return (
             <div id="DeviceOAuth">
-                <h2 id="device-oauth-heading">Device Authorization</h2>
+                <h2 id="device-oauth-heading">Finish Signing In</h2>
                 <section className="device-oauth-panel" aria-labelledby="device-oauth-heading">
                     <p className="device-oauth-step">
-                        <strong>Step 1:</strong> Go to the verification URL and enter the code below
+                        <strong>Step 1:</strong> Open this link
                     </p>
                     <div className="device-oauth-row">
                         <div className="device-oauth-url-box">
@@ -333,15 +339,14 @@ function DeviceOAuth () {
                     </div>
 
                     <div className="device-oauth-footer" aria-live="polite">
-                        <span>Expires in: {remainingSecs === null ? '--:--' : formatCountdown(remainingSecs)}</span>
-                        <span className="device-oauth-checking">
-                            <span className="device-oauth-spinner" aria-hidden="true"></span>
-                            Checking for authorization...
-                        </span>
+                        <span>Code expires in: {remainingSecs === null ? '--:--' : formatCountdown(remainingSecs)}</span>
                     </div>
                 </section>
 
-                <p className="device-oauth-waiting">Waiting for you to complete authorization in your browser...</p>
+                <p className="device-oauth-waiting">
+                    <span className="device-oauth-spinner" aria-hidden="true"></span>
+                    Waiting for sign-in...
+                </p>
             </div>
         );
     }
@@ -356,9 +361,13 @@ function DeviceOAuth () {
     }
 
     if (status === 'error') {
+        const errorHeading = isDeviceCodeExpired
+            ? 'Code expired'
+            : 'Authorization Failed';
+
         return (
             <div id="DeviceOAuth">
-                <h2>Authorization Failed</h2>
+                <h3>{errorHeading}</h3>
                 {/* Surface the failure in the same alert treatment the Information
                     panel uses, so the actual error message stands out instead of
                     reading as plain body text. */}
@@ -366,7 +375,7 @@ function DeviceOAuth () {
                     <p><strong>Error</strong></p>
                     <div className="error-text"><pre style={{ backgroundColor: 'hsla(0,0%,100%,0)', border: 'none', fontFamily: 'inherit', fontSize: '15px' }}>{errorMessage}</pre></div>
                 </div>
-                <button type="button" onClick={() => setStatus('idle')} className="btn btn_color_blue device-oauth-try-again">Try Again</button>
+                <button type="button" onClick={() => setStatus('idle')} className="btn btn_color_blue device-oauth-try-again">Sign in Again</button>
             </div>
         );
     }
