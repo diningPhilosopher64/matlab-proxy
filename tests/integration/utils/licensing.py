@@ -1,4 +1,4 @@
-# Copyright 2024 The MathWorks, Inc.
+# Copyright 2024-2026 The MathWorks, Inc.
 import os
 import logging
 from playwright.sync_api import Page, Error, sync_playwright, expect
@@ -79,6 +79,10 @@ def licensing_with_online_licensing(matlab_proxy_url):
     playwright, browser, page = _launch_browser()
     page.goto(matlab_proxy_url)
 
+    # Select the MHLM tab so the browser-based sign-in form becomes visible before we drive
+    # it.
+    _select_mhlm_tab(page)
+
     # Find the MHLM licensing window in matlab-proxy
     login_iframe = _wait_for_login_iframe(page)
 
@@ -101,6 +105,21 @@ def _verify_licensing(page):
         status_info,
         "Verify if Licensing is successful. This might fail if incorrect credentials are provided",
     ).to_be_visible(timeout=TIMEOUTS["MHLM_VISIBLE"])
+
+
+def _select_mhlm_tab(matlab_proxy_page):
+    """Clicks the MHLM (browser-based) licensing tab if it is present.
+
+    With device-code sign-in enabled the Device OAuth tab is active by default,
+    so the MHLM panel is hidden until its tab is selected. The tab is always
+    rendered, so this brings the MHLM form into view in both configurations.
+    """
+    mhlm_tab = matlab_proxy_page.locator("#mhlm-tab")
+    expect(
+        mhlm_tab,
+        "Wait for the MHLM licensing tab to appear",
+    ).to_be_visible(timeout=TIMEOUTS["MHLM_VISIBLE"])
+    mhlm_tab.click()
 
 
 def _wait_for_login_iframe(matlab_proxy_page):
