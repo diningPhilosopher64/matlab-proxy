@@ -23,15 +23,20 @@ p#LicensingGathererNote {
 #setup-dialog.device-oauth-enabled #setup-tabs {
     display: flex;
     flex-wrap: nowrap;
-    justify-content: center;
 }
 
 #setup-dialog.device-oauth-enabled #setup-tabs > li {
+    flex: 1 1 auto;
     float: none;
+    text-align: center;
 }
 
 #setup-dialog.device-oauth-enabled #setup-tabs > li > a {
     white-space: nowrap;
     padding-left: 10px;
     padding-right: 10px;
+}
+
+#setup-dialog.device-oauth-enabled #setup-tabs > li:last-child > a {
+    margin-right: 0;
 }
