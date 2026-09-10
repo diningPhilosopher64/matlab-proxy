@@ -19,6 +19,7 @@ from matlab_proxy.constants import MWI_AUTH_TOKEN_NAME_FOR_HTTP
 from matlab_proxy.util import mw
 from matlab_proxy.util.dpop import DPoPKey
 from matlab_proxy.util.mwi.exceptions import (
+    EntitlementError,
     LicensingError,
     MatlabError,
     MatlabInstallError,
@@ -1399,6 +1400,48 @@ async def test_set_licensing_from_token_response_parses_nested_mwa_token(
     # The durable expiry comes from the server-provided lifetime.
     refresh_token_expiry = datetime.fromisoformat(lic["refresh_token_expiry"])
     assert before_expiry <= refresh_token_expiry <= after_expiry
+
+
+async def test_set_licensing_from_token_response_handles_entitlement_error(
+    tmp_path, mocker
+):
+    """An invalid entitlement must clear partial OAuth state and propagate the
+    error so the caller can present it in the appropriate context."""
+    app_state = _make_oauth_app_state(tmp_path)
+    error = EntitlementError(
+        "Your MathWorks account is not linked to a valid MATLAB license."
+    )
+    mocker.patch.object(
+        mw,
+        "fetch_entitlements",
+        new=AsyncMock(side_effect=error),
+    )
+
+    with pytest.raises(EntitlementError) as exc_info:
+        await app_state.set_licensing_from_token_response(_oauth_token_response())
+
+    assert exc_info.value is error
+    assert app_state.licensing is None
+    assert app_state.settings["matlab_config_file"].exists() is False
+
+
+async def test_set_licensing_from_token_response_allows_missing_refresh_expiry(
+    tmp_path, mocker
+):
+    """A successful response need not include optional refresh-expiry metadata."""
+    app_state = _make_oauth_app_state(tmp_path)
+    mocker.patch.object(
+        mw,
+        "fetch_entitlements",
+        new=AsyncMock(return_value=[{"id": "ent-1", "label": "MATLAB"}]),
+    )
+    token_response = _oauth_token_response()
+    token_response.pop("refresh_expires_in")
+
+    await app_state.set_licensing_from_token_response(token_response)
+
+    assert app_state.licensing["refresh_token"] == "refresh-token-xyz"
+    assert app_state.licensing["refresh_token_expiry"] is None
 
 
 async def test_set_licensing_from_token_response_no_autoselect_when_multiple(

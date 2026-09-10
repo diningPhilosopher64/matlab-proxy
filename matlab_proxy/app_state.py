@@ -977,16 +977,19 @@ class AppState:
             self.licensing.get("entitlement_id") if self.licensing else None
         )
 
-        # The refresh token is the durable credential. The OAuth server returns
-        # its lifetime in seconds, which we convert to an absolute timestamp for
-        # init_licensing() to check on a later startup. The access token's own
-        # expiry (mwa_token.expirationDate) is short-lived and intentionally NOT
-        # persisted - it is re-derived by refreshing at startup, mirroring the
-        # MHLM identity-token model.
+        # The refresh token is the durable credential. Some OAuth responses
+        # include its lifetime in seconds; convert that to an absolute timestamp
+        # when available so init_licensing() can avoid an unnecessary refresh
+        # after expiry. The field is optional, however, and the refresh endpoint
+        # remains the authority on token validity when it is absent.
+        refresh_expires_in = token_response.get("refresh_expires_in")
         refresh_token_expiry = (
-            datetime.now(timezone.utc)
-            + timedelta(seconds=token_response["refresh_expires_in"])
-        ).isoformat()
+            (
+                datetime.now(timezone.utc) + timedelta(seconds=refresh_expires_in)
+            ).isoformat()
+            if refresh_expires_in is not None
+            else None
+        )
 
         self.licensing = {
             "type": "oauth",
@@ -1011,11 +1014,19 @@ class AppState:
         # Fetch entitlements using the OAuth access token (same MHLM endpoint
         # used by the MHLM sign-in path).
         matlab_version = self.settings["matlab_version"]
-        entitlements = await mw.fetch_entitlements(
-            self.settings["mhlm_api_endpoint"],
-            access_token,
-            matlab_version,
-        )
+        try:
+            entitlements = await mw.fetch_entitlements(
+                self.settings["mhlm_api_endpoint"],
+                access_token,
+                matlab_version,
+            )
+        except EntitlementError as e:
+            # Do not retain the OAuth credentials from a token response that
+            # cannot license this MATLAB release. Re-raise so each caller can
+            # perform its context-specific cleanup and user-facing handling.
+            self.licensing = None
+            log_error(logger, e)
+            raise
 
         self.licensing["entitlements"] = entitlements
 

@@ -23,6 +23,7 @@ p#LicensingGathererNote {
 #setup-dialog.device-oauth-enabled #setup-tabs {
     display: flex;
     flex-wrap: nowrap;
+    justify-content: center;
 }
 
 #setup-dialog.device-oauth-enabled #setup-tabs > li {

@@ -24,7 +24,12 @@ from matlab_proxy.util import mw, mwi
 from matlab_proxy.util.dpop import DPoPKey
 from matlab_proxy.util.mwi import download, token_auth
 from matlab_proxy.util.mwi import environment_variables as mwi_env
-from matlab_proxy.util.mwi.exceptions import AppError, InvalidTokenError, LicensingError
+from matlab_proxy.util.mwi.exceptions import (
+    AppError,
+    EntitlementError,
+    InvalidTokenError,
+    LicensingError,
+)
 
 mimetypes.add_type("font/woff", ".woff")
 mimetypes.add_type("font/woff2", ".woff2")
@@ -633,6 +638,22 @@ async def poll_device_token(req):
 
         else:
             return _pending_response()
+
+    except EntitlementError as e:
+        # Authorization succeeded, but this account cannot license the selected
+        # MATLAB release. Discard the partially constructed OAuth state and any
+        # stale cached entry, then surface the actionable entitlement message.
+        client_id = state.settings.get("oauth_client_id")
+        if state.licensing and state.licensing.get("type") == "oauth":
+            client_id = state.licensing.get("client_id") or client_id
+        if client_id:
+            state._remove_oauth_client_entry(client_id)
+        state.unset_licensing()
+        _clear_device_state(state)
+        return web.json_response(
+            {"status": "error", "error": e.message},
+            status=403,
+        )
 
     except Exception as e:
         # If we were in an AUTHORIZED state and the exchange failed, the flow must

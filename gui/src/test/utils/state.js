@@ -8,7 +8,7 @@ const state = {
         y: 12
     },
     tutorialHidden: true,
-    loadUrl: '/',
+    loadUrl: null,
     error: null,
     warnings: [],
     serverStatus: {

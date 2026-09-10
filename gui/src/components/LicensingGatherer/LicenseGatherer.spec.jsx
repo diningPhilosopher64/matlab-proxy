@@ -21,15 +21,10 @@ describe('LicenseGatherer component', () => {
         vi.clearAllMocks();
     });
 
-    it('should throw error', () => {
-        const errorMock = vi.spyOn(console, 'error').mockImplementation(() => { });
+    it('should render with the default Redux state', () => {
+        const { container } = render(<LicenseGatherer />);
 
-        try {
-            render(<LicenseGatherer />);
-        } catch (error) {
-            expect(error).toBeInstanceOf(TypeError);
-            expect(errorMock).toHaveBeenCalledTimes(1);
-        }
+        expect(container.querySelector('#setup-dialog')).toBeInTheDocument();
     });
 
     it('should render without crashing', () => {
@@ -143,7 +138,7 @@ describe('LicenseGatherer component', () => {
         // When the device code tab is shown, the MHLM tab is relabelled as the
         // browser-based break-glass fallback.
         const mhlmTab = container.querySelector('#mhlm-tab');
-        expect(mhlmTab.textContent).toBe('Online License Manager (Browser)');
+        expect(mhlmTab.textContent).toBe('Online License Manager (Classic)');
     });
 
     it('should switch away from the device code tab to the mhlm tab on click', () => {

@@ -72,14 +72,16 @@ function initLogin (clientNonce, serverNonce, sourceId) {
 function MHLM ({ mhlmLicensingInfo = null }) {
     const dispatch = useDispatch();
     const username = useSelector(selectLicensingMhlmUsername);
-    const wsEnv = useSelector(selectWsEnv);
+    const wsEnv = useSelector(selectWsEnv) || '';
     const matlabVersionOnPath = useSelector(selectMatlabVersionOnPath);
-    const supportedMatlabVersions = useSelector(selectSupportedMatlabVersions);
+    const supportedMatlabVersions = useSelector(selectSupportedMatlabVersions) || [];
 
     const [iFrameLoaded, setIFrameLoaded] = useState(false);
     // useState variable to store response from mhlm after authentication
     const [fetchedMhlmLicensingInfo, setFetchedMhlmLicensingInfo] = useState(mhlmLicensingInfo);
-    const [selectedMatlabVersion, setSelectedMatlabVersion] = useState(supportedMatlabVersions[supportedMatlabVersions.length - 1]);
+    const [selectedMatlabVersion, setSelectedMatlabVersion] = useState(
+        supportedMatlabVersions[supportedMatlabVersions.length - 1] || ''
+    );
 
     const mhlmLoginHostname = useMemo(
         () => {

@@ -44,11 +44,11 @@ describe('DeviceOAuth Component', () => {
             headers: { 'content-type': 'application/json' }
         });
 
-        const { getByText } = render(<DeviceOAuth />, { initialState });
+        const { findByRole } = render(<DeviceOAuth />, { initialState });
 
-        await waitFor(() => {
-            expect(getByText('Start Device Authorization')).toBeInTheDocument();
-        });
+        expect(
+            await findByRole('button', { name: 'Sign in' })
+        ).toBeInTheDocument();
     });
 
     it('should initiate the device flow and render the code and verification URL on Start', async () => {
@@ -68,10 +68,10 @@ describe('DeviceOAuth Component', () => {
             headers: { 'content-type': 'application/json' }
         });
 
-        const { getByText, findByText } = render(<DeviceOAuth />, { initialState });
+        const { getByText, findByRole } = render(<DeviceOAuth />, { initialState });
 
         // Wait for the idle Start screen, then start the flow.
-        const startButton = await findByText('Start Device Authorization');
+        const startButton = await findByRole('button', { name: 'Sign in' });
         fireEvent.click(startButton);
 
         await waitFor(() => {
@@ -93,9 +93,9 @@ describe('DeviceOAuth Component', () => {
             headers: { 'content-type': 'application/json' }
         });
 
-        const { getByText, findByText } = render(<DeviceOAuth />, { initialState });
+        const { getByRole, getByText, findByRole, findByText } = render(<DeviceOAuth />, { initialState });
 
-        const startButton = await findByText('Start Device Authorization');
+        const startButton = await findByRole('button', { name: 'Sign in' });
         fireEvent.click(startButton);
 
         // The error message from the backend should be surfaced.
@@ -107,9 +107,9 @@ describe('DeviceOAuth Component', () => {
         // treatment as the Information panel) so the error stands out.
         expect(errorMessage.closest('.alert.alert-danger')).not.toBeNull();
 
-        // Clicking "Try Again" returns to the Start screen.
-        fireEvent.click(getByText('Try Again'));
-        expect(getByText('Start Device Authorization')).toBeInTheDocument();
+        // Clicking "Sign in Again" returns to the Start screen.
+        fireEvent.click(getByRole('button', { name: 'Sign in Again' }));
+        expect(getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     });
 
     it('should rehydrate the pending flow from a poll response after a refresh', async () => {
@@ -130,7 +130,7 @@ describe('DeviceOAuth Component', () => {
 
         await waitFor(() => {
             expect(getByText('WXYZ-1234')).toBeInTheDocument();
-            expect(getByText('Device Authorization')).toBeInTheDocument();
+            expect(getByText('Finish Signing In')).toBeInTheDocument();
         });
     });
 
@@ -243,9 +243,9 @@ describe('DeviceOAuth Component', () => {
             headers: { 'content-type': 'application/json' }
         });
 
-        const { getByText, findByText } = render(<DeviceOAuth />, { initialState });
+        const { getByText, findByRole } = render(<DeviceOAuth />, { initialState });
 
-        const startButton = await findByText('Start Device Authorization');
+        const startButton = await findByRole('button', { name: 'Sign in' });
         fireEvent.click(startButton);
 
         // The dropdown screen appears; device_authorize has NOT been called yet.
@@ -275,9 +275,9 @@ describe('DeviceOAuth Component', () => {
             headers: { 'content-type': 'application/json' }
         });
 
-        const { getByText, getByRole, findByText } = render(<DeviceOAuth />, { initialState });
+        const { getByText, getByRole, findByRole } = render(<DeviceOAuth />, { initialState });
 
-        fireEvent.click(await findByText('Start Device Authorization'));
+        fireEvent.click(await findByRole('button', { name: 'Sign in' }));
 
         // Choose a version on the dropdown screen, then Proceed.
         const dropdown = await waitFor(() => getByRole('combobox'));
@@ -306,9 +306,9 @@ describe('DeviceOAuth Component', () => {
             headers: { 'content-type': 'application/json' }
         });
 
-        const { getByText, findByText } = render(<DeviceOAuth />, { initialState });
+        const { getByText, findByRole } = render(<DeviceOAuth />, { initialState });
 
-        fireEvent.click(await findByText('Start Device Authorization'));
+        fireEvent.click(await findByRole('button', { name: 'Sign in' }));
 
         await waitFor(() => {
             expect(fetchMock.called('./device_authorize')).toBe(true);

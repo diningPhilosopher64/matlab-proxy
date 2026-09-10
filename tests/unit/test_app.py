@@ -1465,6 +1465,61 @@ async def test_device_authorize_ignores_matlab_version_when_determined_on_startu
     assert settings["matlab_version"] == "R2024b"
 
 
+async def test_poll_device_token_surfaces_entitlement_error(
+    patch_authenticate_access_decorator, oauth_device_request, mocker
+):
+    """An authorized account without a valid entitlement gets the actionable
+    licensing error, and no partial OAuth state or secrets are retained."""
+    state = oauth_device_request.app["state"]
+    settings = state.settings
+    settings.update(
+        {
+            "device_code": "secret-device-code",
+            "code_verifier": "code-verifier",
+            "device_auth_cached_status": None,
+            "device_auth_last_check": None,
+            "device_code_interval": 5,
+            "dpop_key": "dpop-key",
+        }
+    )
+    state.licensing = {
+        "type": "oauth",
+        "client_id": settings["oauth_client_id"],
+        "entitlements": [],
+        "entitlement_id": None,
+    }
+
+    mocker.patch.object(
+        app.mw,
+        "check_device_auth_status",
+        new=mocker.AsyncMock(return_value={"status": "AUTHORIZED"}),
+    )
+    mocker.patch.object(
+        app.mw,
+        "exchange_device_token",
+        new=mocker.AsyncMock(return_value={"access_token": "access-token"}),
+    )
+    error = EntitlementError(
+        "Your MathWorks account is not linked to a valid MATLAB license."
+    )
+    state.set_licensing_from_token_response = mocker.AsyncMock(side_effect=error)
+
+    resp = await app.poll_device_token(oauth_device_request)
+
+    assert resp.status == HTTPStatus.FORBIDDEN
+    assert json.loads(resp.body) == {
+        "status": "error",
+        "error": error.message,
+    }
+    state._remove_oauth_client_entry.assert_called_once_with(
+        settings["oauth_client_id"]
+    )
+    state.unset_licensing.assert_called_once()
+    assert settings["device_code"] is None
+    assert settings["code_verifier"] is None
+    assert settings["dpop_key"] is None
+
+
 async def test_licensing_info_delete_revokes_oauth_token(
     patch_authenticate_access_decorator, mocker
 ):

@@ -22,10 +22,10 @@ const formatCountdown = (totalSeconds) => {
 function DeviceOAuth () {
     const dispatch = useDispatch();
     const matlabVersionOnPath = useSelector(selectMatlabVersionOnPath);
-    const supportedMatlabVersions = useSelector(selectSupportedMatlabVersions);
+    const supportedMatlabVersions = useSelector(selectSupportedMatlabVersions) || [];
     // Default the dropdown to the newest supported version, matching MHLM.
     const [selectedMatlabVersion, setSelectedMatlabVersion] = useState(
-        supportedMatlabVersions[supportedMatlabVersions.length - 1]
+        supportedMatlabVersions[supportedMatlabVersions.length - 1] || ''
     );
     const [deviceInfo, setDeviceInfo] = useState(null);
     // checking, idle, authorizing, pending, success, error.
