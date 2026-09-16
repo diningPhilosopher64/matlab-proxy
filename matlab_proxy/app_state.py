@@ -947,20 +947,25 @@ class AppState:
 
         Used by both the device code sign-in flow and token refresh. The token
         response from the MathWorks OAuth server contains a nested ``mwa_token``
-        object with the actual access token and user information. Fetches
+        object with the actual access token. The initial token exchange also
+        includes user information, while refresh responses may omit it. Fetches
         entitlements and auto-selects when only one is available.
 
         Args:
             token_response (dict): Token response from the OAuth server.
         """
+        # Keep the current licensing values as fallbacks for response fields that
+        # the refresh endpoint does not repeat, such as user identity.
+        previous_licensing = self.licensing or {}
+
         # The tokens are bound to the current client: an in-progress refresh
         # carries the client_id on self.licensing; a first-time device sign-in
         # has no licensing yet, so fall back to the configured client id.
-        client_id = self.licensing.get("client_id") if self.licensing else None
+        client_id = previous_licensing.get("client_id")
         client_id = client_id or self.settings["oauth_client_id"]
 
         mwa_token = token_response.get("mwa_token", token_response)
-        reference_detail = mwa_token.get("referenceDetail", {})
+        reference_detail = mwa_token.get("referenceDetail") or {}
         access_token = mwa_token.get(
             "accessTokenString", token_response.get("access_token")
         )
@@ -973,9 +978,7 @@ class AppState:
         # rebuilds self.licensing from scratch, and a refresh on restore would
         # otherwise drop a multi-entitlement user's selection (auto-select below
         # only fires when there is exactly one entitlement).
-        previous_entitlement_id = (
-            self.licensing.get("entitlement_id") if self.licensing else None
-        )
+        previous_entitlement_id = previous_licensing.get("entitlement_id")
 
         # The refresh token is the durable credential. Some OAuth responses
         # include its lifetime in seconds; convert that to an absolute timestamp
@@ -998,11 +1001,21 @@ class AppState:
             "expiry": mwa_token.get("expirationDate"),
             # Refresh-token expiry (durable); persisted and used as the startup gate.
             "refresh_token_expiry": refresh_token_expiry,
-            "email_addr": reference_detail.get("email"),
-            "first_name": reference_detail.get("firstName"),
-            "last_name": reference_detail.get("lastName"),
-            "display_name": reference_detail.get("displayName"),
-            "user_id": reference_detail.get("userId"),
+            "email_addr": reference_detail.get(
+                "email", previous_licensing.get("email_addr")
+            ),
+            "first_name": reference_detail.get(
+                "firstName", previous_licensing.get("first_name")
+            ),
+            "last_name": reference_detail.get(
+                "lastName", previous_licensing.get("last_name")
+            ),
+            "display_name": reference_detail.get(
+                "displayName", previous_licensing.get("display_name")
+            ),
+            "user_id": reference_detail.get(
+                "userId", previous_licensing.get("user_id")
+            ),
             "source_id": client_id,
             "token": access_token,
             "refresh_token": token_response.get("refresh_token"),

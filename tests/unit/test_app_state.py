@@ -1623,6 +1623,72 @@ async def test_init_oauth_from_cache_finds_matching_client_and_refreshes(
     assert isinstance(app_state.settings["dpop_key"], DPoPKey)
 
 
+async def test_init_oauth_from_cache_preserves_identity_when_refresh_omits_it(
+    tmp_path, mocker
+):
+    """Refreshing cached OAuth licensing must not erase cached user identity.
+
+    The device-code token exchange returns referenceDetail, but the refresh
+    endpoint may omit this stable profile metadata.
+    """
+    app_state = _make_oauth_app_state(tmp_path)
+    app_state.settings["mwi_use_existing_license"] = False
+
+    identity = {
+        "email_addr": "user@example.com",
+        "first_name": "John",
+        "last_name": "Doe",
+        "display_name": "John Doe",
+        "user_id": "12345",
+    }
+    entitlements = [{"id": "ent-1", "label": "MATLAB"}]
+    cached_config = {
+        "licensing": {
+            "type": "oauth",
+            "clients": [
+                {
+                    "client_id": "mw-cpi-matlab-proxy",
+                    "refresh_token": "refresh-abc",
+                    "refresh_token_expiry": (
+                        datetime.now(timezone.utc) + timedelta(days=30)
+                    ).isoformat(),
+                    "entitlement_id": "ent-1",
+                    "entitlements": entitlements,
+                    "dpop_key": DPoPKey().to_dict(),
+                    "matlab": {"version": "R2024b"},
+                    **identity,
+                }
+            ],
+        }
+    }
+    config_file = app_state.settings["matlab_config_file"]
+    config_file.parent.mkdir(parents=True, exist_ok=True)
+    config_file.write_text(json.dumps(cached_config))
+
+    refresh_response = _oauth_token_response()
+    refresh_response["mwa_token"].pop("referenceDetail")
+    mocker.patch.object(
+        mw,
+        "refresh_oauth_token",
+        new=AsyncMock(return_value=refresh_response),
+    )
+    mocker.patch.object(
+        mw,
+        "fetch_entitlements",
+        new=AsyncMock(return_value=entitlements),
+    )
+
+    await app_state.init_licensing()
+
+    in_memory_identity = {field: app_state.licensing[field] for field in identity}
+    assert in_memory_identity == identity
+
+    persisted_entry = json.loads(config_file.read_text())["licensing"]["clients"][0]
+    persisted_identity = {field: persisted_entry[field] for field in identity}
+    assert persisted_identity == identity
+    assert persisted_entry["refresh_token"] == "refresh-token-xyz"
+
+
 async def test_init_oauth_from_cache_no_matching_client_requires_signin(
     tmp_path, mocker
 ):
