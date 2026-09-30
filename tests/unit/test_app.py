@@ -837,6 +837,23 @@ async def test_set_licensing_info_put_mhlm(
         return_value=set_licensing_info_mock_fetch_multiple_entitlements,
     )
 
+    state = test_server.server.app["state"]
+    transient_device_state = {
+        "device_code": "secret-device-code",
+        "device_code_interval": 5,
+        "device_auth_cached_status": "PENDING",
+        "device_auth_last_check": time.time(),
+        "code_verifier": "code-verifier",
+        "code_challenge": "code-challenge",
+        "dpop_key": "dpop-key",
+        "oauth_session_id": "oauth-session-id",
+        "device_user_code": "ABCD-EFGH",
+        "device_verification_uri": "https://www.mathworks.com/mwlogin",
+        "device_verification_uri_complete": "https://www.mathworks.com/mwlogin?code=ABCD-EFGH",
+        "device_code_expiry": time.time() + 600,
+    }
+    state.settings.update(transient_device_state)
+
     data = {
         "type": "mhlm",
         "status": "starting",
@@ -847,6 +864,7 @@ async def test_set_licensing_info_put_mhlm(
     }
     resp = await test_server.put("/set_licensing_info", data=json.dumps(data))
     assert resp.status == HTTPStatus.OK
+    assert all(state.settings[key] is None for key in transient_device_state)
 
 
 async def test_set_licensing_info_put_existing_license(test_server):

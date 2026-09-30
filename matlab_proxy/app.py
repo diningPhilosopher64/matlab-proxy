@@ -374,6 +374,11 @@ async def set_licensing_info(req):
             await state.set_licensing_mhlm(
                 data.get("token"), data.get("emailAddress"), data.get("sourceId")
             )
+            # The user committed to the classic flow. Any device authorization
+            # left pending while that experience was hidden is no longer useful,
+            # so discard its in-memory secrets instead of retaining them until a
+            # future poll notices the code has expired.
+            _clear_device_state(state)
 
         elif lic_type == "existing_license":
             state.set_licensing_existing_license()
@@ -430,6 +435,7 @@ def _clear_device_state(state):
     """
     for key in (
         "device_code",
+        "device_code_interval",
         "device_auth_cached_status",
         "device_auth_last_check",
         "code_verifier",

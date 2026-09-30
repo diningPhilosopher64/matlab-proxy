@@ -7,6 +7,7 @@ import { fireEvent } from '@testing-library/react';
 import state from '../../test/utils/state';
 import MHLM from './MHLM';
 import * as actionCreators from '../../actionCreators';
+import fetchMock from 'fetch-mock';
 
 
 const _ = require('lodash');
@@ -19,6 +20,7 @@ describe('LicenseGatherer component', () => {
 
     afterEach(() => {
         vi.clearAllMocks();
+        fetchMock.restore();
     });
 
     it('should render with the default Redux state', () => {
@@ -36,7 +38,7 @@ describe('LicenseGatherer component', () => {
 
         const { container } = render(<LicenseGatherer />, { initialState });
 
-        const mhlmTab = container.querySelector('#mhlm-tab');
+        const mhlmTab = container.querySelector('#onlineLicense-tab');
 
         expect(mhlmTab).toBeInTheDocument();
 
@@ -50,7 +52,7 @@ describe('LicenseGatherer component', () => {
     it('should have rendered mhlm tab by default without crashing', () => {
         const { container } = render(<LicenseGatherer />, { initialState });
 
-        const mhlmTab = container.querySelector('#mhlm-tab');
+        const mhlmTab = container.querySelector('#onlineLicense-tab');
 
         expect(mhlmTab).toBeInTheDocument();
         // Click on mhlm Tab
@@ -108,53 +110,94 @@ describe('LicenseGatherer component', () => {
         expect(existingLicenseTabContent).toBeInTheDocument();
     });
 
-    it('should not render the device code (OAuth) tab when online_auth_method is not device_code', () => {
+    it('should render the three-tab MHLM-only layout when online_auth_method is not device_code', () => {
         // Default state's envConfig has no online_auth_method, which the selector
         // treats as 'mhlm'.
         const { container } = render(<LicenseGatherer />, { initialState });
 
+        expect(container.querySelectorAll('#setup-tabs > li')).toHaveLength(3);
         expect(container.querySelector('#deviceOauth-tab')).not.toBeInTheDocument();
         expect(container.querySelector('#deviceOauth')).not.toBeInTheDocument();
 
-        // The MHLM tab keeps its plain label when the device code tab is absent.
-        const mhlmTab = container.querySelector('#mhlm-tab');
+        const mhlmTab = container.querySelector('#onlineLicense-tab');
         expect(mhlmTab).toBeInTheDocument();
         expect(mhlmTab.textContent).toBe('Online License Manager');
+        expect(container.querySelector('#MHLM')).toBeInTheDocument();
+        expect(container.querySelector('.online-experience-switch')).not.toBeInTheDocument();
     });
 
-    it('should render the device code (OAuth) tab and make it active by default when online_auth_method is device_code', () => {
+    it('should render Device OAuth by default in the three-tab Online License Manager layout', async () => {
         initialState.envConfig.online_auth_method = 'device_code';
+        fetchMock.get('./poll_device_token', {
+            body: { status: 'idle' },
+            headers: { 'content-type': 'application/json' }
+        });
 
-        const { container } = render(<LicenseGatherer />, { initialState });
+        const { container, findByRole } = render(<LicenseGatherer />, { initialState });
 
-        const deviceOauthTab = container.querySelector('#deviceOauth-tab');
-        expect(deviceOauthTab).toBeInTheDocument();
-
-        // The device code panel should be present and active by default.
-        const deviceOauthTabContent = container.querySelector('#deviceOauth');
-        expect(deviceOauthTabContent).toBeInTheDocument();
-        expect(deviceOauthTabContent).toHaveClass('active');
-
-        // When the device code tab is shown, the MHLM tab is relabelled as the
-        // browser-based break-glass fallback.
-        const mhlmTab = container.querySelector('#mhlm-tab');
-        expect(mhlmTab.textContent).toBe('Online License Manager (Classic)');
+        expect(container.querySelectorAll('#setup-tabs > li')).toHaveLength(3);
+        expect(container.querySelector('#deviceOauth-tab')).not.toBeInTheDocument();
+        expect(container.querySelector('#mhlm-tab')).not.toBeInTheDocument();
+        expect(container.querySelector('#onlineLicense-tab').textContent).toBe('Online License Manager');
+        expect(container.querySelector('#onlineLicense')).toHaveClass('active');
+        expect(container.querySelector('#DeviceOAuth')).toBeInTheDocument();
+        expect(container.querySelector('#MHLM')).not.toBeInTheDocument();
+        expect(await findByRole('button', { name: 'Switch to old experience' })).toBeInTheDocument();
     });
 
-    it('should switch away from the device code tab to the mhlm tab on click', () => {
+    it('should switch experiences without reloading and retain the choice across tab changes', async () => {
         initialState.envConfig.online_auth_method = 'device_code';
+        fetchMock.get('./poll_device_token', {
+            body: { status: 'idle' },
+            headers: { 'content-type': 'application/json' }
+        });
 
-        const { container } = render(<LicenseGatherer />, { initialState });
+        const { container, findByRole, getByRole } = render(<LicenseGatherer />, { initialState });
 
-        // Device code tab is active by default.
-        expect(container.querySelector('#deviceOauth')).toHaveClass('active');
+        fireEvent.click(await findByRole('button', { name: 'Switch to old experience' }));
 
-        const mhlmTab = container.querySelector('#mhlm-tab');
-        fireEvent.click(mhlmTab);
+        expect(container.querySelector('#DeviceOAuth')).not.toBeInTheDocument();
+        expect(container.querySelector('#MHLM')).toBeInTheDocument();
 
-        // MHLM tab becomes active and the device code tab is no longer active.
-        expect(container.querySelector('#mhlm')).toHaveClass('active');
-        expect(container.querySelector('#deviceOauth')).not.toHaveClass('active');
+        fireEvent.click(container.querySelector('#nlm-tab'));
+        fireEvent.click(container.querySelector('#onlineLicense-tab'));
+        expect(container.querySelector('#MHLM')).toBeInTheDocument();
+
+        fireEvent.load(container.querySelector('#loginframe'));
+        fireEvent.click(getByRole('button', { name: 'Switch back to new experience' }));
+
+        expect(container.querySelector('#MHLM')).not.toBeInTheDocument();
+        expect(container.querySelector('#DeviceOAuth')).toBeInTheDocument();
+    });
+
+    it('should resume an active device flow with the remaining server-side lifetime after switching back', async () => {
+        initialState.envConfig.online_auth_method = 'device_code';
+        let pollCount = 0;
+        fetchMock.get('./poll_device_token', () => {
+            pollCount += 1;
+            return {
+                body: {
+                    status: 'pending',
+                    user_code: 'ABCD-EFGH',
+                    verification_uri: 'https://www.mathworks.com/mwlogin',
+                    expires_in: pollCount === 1
+                        ? 300
+                        : 240
+                },
+                headers: { 'content-type': 'application/json' }
+            };
+        });
+
+        const { container, findByRole, findByText } = render(<LicenseGatherer />, { initialState });
+
+        expect(await findByText('Code expires in: 5:00')).toBeInTheDocument();
+        fireEvent.click(await findByRole('button', { name: 'Switch to old experience' }));
+
+        fireEvent.load(container.querySelector('#loginframe'));
+        fireEvent.click(await findByRole('button', { name: 'Switch back to new experience' }));
+
+        expect(await findByText('Code expires in: 4:00')).toBeInTheDocument();
+        expect(pollCount).toBeGreaterThanOrEqual(2);
     });
 
     test.each([

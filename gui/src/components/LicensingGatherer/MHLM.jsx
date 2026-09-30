@@ -68,8 +68,8 @@ function initLogin (clientNonce, serverNonce, sourceId) {
     loginFrame.postMessage(JSON.stringify(initPayload), '*');
 }
 
-// Adding a child prop with null as default for improved testability.
-function MHLM ({ mhlmLicensingInfo = null }) {
+// Adding child props with null defaults for improved testability.
+function MHLM ({ mhlmLicensingInfo = null, onSwitchToNewExperience = null }) {
     const dispatch = useDispatch();
     const username = useSelector(selectLicensingMhlmUsername);
     const wsEnv = useSelector(selectWsEnv) || '';
@@ -191,14 +191,27 @@ function MHLM ({ mhlmLicensingInfo = null }) {
         </div>
     );
 
-    // Render MHLM iFrame if not authenticated and matlab version couldn't be determined
-    if (fetchedMhlmLicensingInfo && !matlabVersionOnPath) {
-        return chooseMatlabVersionDropDown;
-    } else {
-        return mhlmIframe;
-    }
+    const mhlmContent = fetchedMhlmLicensingInfo && !matlabVersionOnPath
+        ? chooseMatlabVersionDropDown
+        : mhlmIframe;
+    const showExperienceSwitch = onSwitchToNewExperience &&
+        (iFrameLoaded || (fetchedMhlmLicensingInfo && !matlabVersionOnPath));
+
+    return (
+        <div className="mhlm-experience">
+            {mhlmContent}
+            {showExperienceSwitch && (
+                <div className="online-experience-switch">
+                    <button type="button" onClick={onSwitchToNewExperience}>
+                        Switch back to new experience
+                    </button>
+                </div>
+            )}
+        </div>
+    );
 }
 MHLM.propTypes = {
-    mhlmLicensingInfo: PropTypes.object
+    mhlmLicensingInfo: PropTypes.object,
+    onSwitchToNewExperience: PropTypes.func
 };
 export default MHLM;

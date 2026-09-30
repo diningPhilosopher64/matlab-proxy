@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useInterval } from 'react-use';
+import PropTypes from 'prop-types';
 import { requestServerStatus } from '../../actionCreators';
 import {
     selectMatlabVersionOnPath,
@@ -19,7 +20,7 @@ const formatCountdown = (totalSeconds) => {
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
 };
 
-function DeviceOAuth () {
+function DeviceOAuth ({ onSwitchToOldExperience = null }) {
     const dispatch = useDispatch();
     const matlabVersionOnPath = useSelector(selectMatlabVersionOnPath);
     const supportedMatlabVersions = useSelector(selectSupportedMatlabVersions) || [];
@@ -226,6 +227,30 @@ function DeviceOAuth () {
         }
     }, [matlabVersionOnPath, handleStartDeviceFlow]);
 
+    // An expired code cannot be reused. Request its replacement immediately so
+    // retrying bypasses the introductory Start screen and returns to the pending
+    // "Finish Signing in by:" screen as soon as the server supplies the new code.
+    const handleErrorSignIn = useCallback(() => {
+        if (!isDeviceCodeExpired) {
+            setStatus('idle');
+            return;
+        }
+
+        deadlineRef.current = null;
+        setDeviceInfo(null);
+        setRemainingSecs(null);
+        setCopied(false);
+        handleStartDeviceFlow();
+    }, [handleStartDeviceFlow, isDeviceCodeExpired]);
+
+    const switchToOldExperienceLink = onSwitchToOldExperience && (
+        <div className="online-experience-switch">
+            <button type="button" onClick={onSwitchToOldExperience}>
+                Switch to old experience
+            </button>
+        </div>
+    );
+
     const copyUserCode = () => {
         if (deviceInfo?.user_code) {
             navigator.clipboard.writeText(deviceInfo.user_code);
@@ -268,6 +293,7 @@ function DeviceOAuth () {
                         />
                     </div>
                 </form>
+                {status === 'idle' && switchToOldExperienceLink}
             </div>
         );
     }
@@ -299,6 +325,7 @@ function DeviceOAuth () {
                         <input type="submit" id="startMatlabBtn" value={status === 'authorizing' ? 'Starting...' : 'Proceed'} className="btn btn_color_blue" disabled={status === 'authorizing'} />
                     </div>
                 </form>
+                {status === 'select_matlab_version' && switchToOldExperienceLink}
             </div>
         );
     }
@@ -307,7 +334,7 @@ function DeviceOAuth () {
         const verificationUrl = deviceInfo.verification_uri_complete || deviceInfo.verification_uri;
         return (
             <div id="DeviceOAuth">
-                <h2 id="device-oauth-heading">Finish Signing In</h2>
+                <h2 id="device-oauth-heading">Finish Signing in by:</h2>
                 <section className="device-oauth-panel" aria-labelledby="device-oauth-heading">
                     <p className="device-oauth-step">
                         <strong>Step 1:</strong> Open this link
@@ -327,7 +354,7 @@ function DeviceOAuth () {
                     </div>
 
                     <p className="device-oauth-step">
-                        <strong>Step 2:</strong> Enter this code
+                        <strong>Step 2:</strong> If prompted enter the code
                     </p>
                     <div className="device-oauth-row">
                         <code className="device-oauth-code-box">
@@ -347,6 +374,7 @@ function DeviceOAuth () {
                     <span className="device-oauth-spinner" aria-hidden="true"></span>
                     Waiting for sign-in...
                 </p>
+                {switchToOldExperienceLink}
             </div>
         );
     }
@@ -375,12 +403,17 @@ function DeviceOAuth () {
                     <p><strong>Error</strong></p>
                     <div className="error-text"><pre style={{ backgroundColor: 'hsla(0,0%,100%,0)', border: 'none', fontFamily: 'inherit', fontSize: '15px' }}>{errorMessage}</pre></div>
                 </div>
-                <button type="button" onClick={() => setStatus('idle')} className="btn btn_color_blue device-oauth-try-again">Sign in Again</button>
+                <button type="button" onClick={handleErrorSignIn} className="btn btn_color_blue device-oauth-try-again">Sign in</button>
+                {switchToOldExperienceLink}
             </div>
         );
     }
 
     return null;
 }
+
+DeviceOAuth.propTypes = {
+    onSwitchToOldExperience: PropTypes.func
+};
 
 export default DeviceOAuth;

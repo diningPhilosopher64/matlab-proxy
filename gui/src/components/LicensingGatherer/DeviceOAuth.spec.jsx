@@ -107,8 +107,8 @@ describe('DeviceOAuth Component', () => {
         // treatment as the Information panel) so the error stands out.
         expect(errorMessage.closest('.alert.alert-danger')).not.toBeNull();
 
-        // Clicking "Sign in Again" returns to the Start screen.
-        fireEvent.click(getByRole('button', { name: 'Sign in Again' }));
+        // Clicking "Sign in" returns to the Start screen.
+        fireEvent.click(getByRole('button', { name: 'Sign in' }));
         expect(getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     });
 
@@ -130,7 +130,11 @@ describe('DeviceOAuth Component', () => {
 
         await waitFor(() => {
             expect(getByText('WXYZ-1234')).toBeInTheDocument();
-            expect(getByText('Finish Signing In')).toBeInTheDocument();
+            expect(getByText('Finish Signing in by:')).toBeInTheDocument();
+            expect(getByText((_, element) =>
+                element.tagName === 'P' &&
+                element.textContent === 'Step 2: If prompted enter the code'
+            )).toBeInTheDocument();
         });
     });
 
@@ -169,19 +173,52 @@ describe('DeviceOAuth Component', () => {
     });
 
     it('should show the code-expired heading when the mount poll reports device code expiry', async () => {
-        fetchMock.get('./poll_device_token', {
-            status: 410,
-            body: { status: 'error', error: 'The authorization request is no longer valid' },
+        let pollCount = 0;
+        fetchMock.get('./poll_device_token', () => {
+            pollCount += 1;
+            if (pollCount === 1) {
+                return {
+                    status: 410,
+                    body: { status: 'error', error: 'The authorization request is no longer valid' },
+                    headers: { 'content-type': 'application/json' }
+                };
+            }
+            return {
+                body: {
+                    status: 'pending',
+                    user_code: 'NEW-CODE',
+                    verification_uri: 'https://www.mathworks.com/mwlogin',
+                    expires_in: 600
+                },
+                headers: { 'content-type': 'application/json' }
+            };
+        });
+        fetchMock.post('./device_authorize', {
+            body: {
+                user_code: 'NEW-CODE',
+                verification_uri: 'https://www.mathworks.com/mwlogin',
+                expires_in: 600
+            },
             headers: { 'content-type': 'application/json' }
         });
 
-        const { getByText } = render(<DeviceOAuth />, { initialState });
+        const { getByRole, getByText } = render(<DeviceOAuth />, { initialState });
 
         await waitFor(() => {
             expect(getByText('Code expired')).toBeInTheDocument();
             expect(getByText('The authorization request is no longer valid')).toBeInTheDocument();
+            expect(getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
         });
         expect(() => getByText('Authorization Failed')).toThrow();
+
+        fireEvent.click(getByRole('button', { name: 'Sign in' }));
+
+        await waitFor(() => {
+            expect(fetchMock.called('./device_authorize')).toBe(true);
+            expect(getByText('Finish Signing in by:')).toBeInTheDocument();
+            expect(getByText('NEW-CODE')).toBeInTheDocument();
+        });
+        expect(() => getByText('Sign in to your MathWorks Account to start MATLAB. You will receive a security code.')).toThrow();
     });
 
     it('should keep the authorization-failed heading for other poll errors', async () => {

@@ -13,17 +13,18 @@ function LicensingGatherer () {
     const onlineAuthMethod = useSelector(selectOnlineAuthMethod);
     const useDeviceCode = onlineAuthMethod === 'device_code';
 
-    // The default online tab is the device code flow when enabled, else MHLM.
-    const [activeTab, setActiveTab] = useState(useDeviceCode ? 'deviceOauth' : 'mhlm');
+    const [activeTab, setActiveTab] = useState('onlineLicense');
+    // Device OAuth is the default experience when the integration supports it.
+    // Keep this separate from activeTab so the choice survives visits to the NLM
+    // and Existing License tabs for the lifetime of this non-dismissable modal.
+    const [onlineExperience, setOnlineExperience] = useState('deviceOauth');
+    const activeOnlineExperience = useDeviceCode
+        ? onlineExperience
+        : 'mhlm';
 
-    const handleMhlmTabClick = e => {
+    const handleOnlineLicenseTabClick = e => {
         e.preventDefault();
-        setActiveTab('mhlm');
-    };
-
-    const handleDeviceOauthTabClick = e => {
-        e.preventDefault();
-        setActiveTab('deviceOauth');
+        setActiveTab('onlineLicense');
     };
 
     const handleNlmTabClick = e => {
@@ -34,11 +35,16 @@ function LicensingGatherer () {
         e.preventDefault();
         setActiveTab('existingLicense');
     };
+    const handleSwitchToOldExperience = () => setOnlineExperience('mhlm');
+    const handleSwitchToNewExperience = () => setOnlineExperience('deviceOauth');
+    const switchToNewExperience = useDeviceCode
+        ? handleSwitchToNewExperience
+        : null;
 
-    const mhlmActive = activeTab === 'mhlm'
+    const onlineLicenseActive = activeTab === 'onlineLicense'
         ? 'active'
         : '';
-    const mhlmAriaExpanded = activeTab === 'mhlm'
+    const onlineLicenseAriaExpanded = activeTab === 'onlineLicense'
         ? 'true'
         : 'false';
     const nlmActive = activeTab === 'nlm'
@@ -53,17 +59,6 @@ function LicensingGatherer () {
     const existingLicenseAriaExpanded = activeTab === 'existingLicense'
         ? 'true'
         : 'false';
-    const deviceOauthActive = activeTab === 'deviceOauth'
-        ? 'active'
-        : '';
-    const deviceOauthAriaExpanded = activeTab === 'deviceOauth'
-        ? 'true'
-        : 'false';
-    // When the device code tab is also shown, disambiguate the MHLM tab as the
-    // browser-based break-glass option.
-    const mhlmTabLabel = useDeviceCode
-        ? 'Online License Manager (Classic)'
-        : 'Online License Manager';
 
     return (
         // This licensing modal intentionally has no close/cancel control (cf.
@@ -76,29 +71,14 @@ function LicensingGatherer () {
                     <div className="modal-body">
                         <div className="tab-container">
                             <ul id="setup-tabs" className="nav nav-tabs" role="tablist">
-                                {/* The device code (OAuth) tab is shown only when the
-                                    integration supports it; it is the preferred online
-                                    sign-in and is active by default. The MHLM tab is
-                                    always shown as a break-glass fallback. */}
-                                {useDeviceCode && (
-                                    <li role="presentation" className={deviceOauthActive}>
-                                        <a
-                                            href="#deviceOauth"
-                                            id="deviceOauth-tab"
-                                            onClick={handleDeviceOauthTabClick}
-                                            role="tab"
-                                            aria-controls="deviceOauth"
-                                            aria-expanded={deviceOauthAriaExpanded}>Sign In</a>
-                                    </li>
-                                )}
-                                <li role="presentation" className={mhlmActive}>
+                                <li role="presentation" className={onlineLicenseActive}>
                                     <a
-                                        href="#mhlm"
-                                        id="mhlm-tab"
-                                        onClick={handleMhlmTabClick}
+                                        href="#onlineLicense"
+                                        id="onlineLicense-tab"
+                                        onClick={handleOnlineLicenseTabClick}
                                         role="tab"
-                                        aria-controls="mhlm"
-                                        aria-expanded={mhlmAriaExpanded}>{mhlmTabLabel}</a>
+                                        aria-controls="onlineLicense"
+                                        aria-expanded={onlineLicenseAriaExpanded}>Online License Manager</a>
                                 </li>
                                 <li role="presentation" className={nlmActive}>
                                     <a
@@ -119,19 +99,11 @@ function LicensingGatherer () {
                                         aria-expanded={existingLicenseAriaExpanded}>Existing License</a>
                                 </li>
                             </ul>
-                            {/* The MHLM iframe is slow to load, so it is always rendered
-                                (and preloaded) and the active tab is selected with React.
-                                The device code (OAuth) panel is rendered only when the
-                                integration supports it. NLM and Existing License tabs are
-                                always rendered too. */}
                             <div id="setup-tabs-content" className="tab-content">
-                                {useDeviceCode && (
-                                    <div role="tabpanel" className={`tab-pane ${deviceOauthActive}`} id="deviceOauth" aria-labelledby="deviceOauth-tab">
-                                        <DeviceOAuth />
-                                    </div>
-                                )}
-                                <div role="tabpanel" className={`tab-pane ${mhlmActive}`} id="mhlm" aria-labelledby="mhlm-tab">
-                                    <MHLM />
+                                <div role="tabpanel" className={`tab-pane ${onlineLicenseActive}`} id="onlineLicense" aria-labelledby="onlineLicense-tab">
+                                    {activeOnlineExperience === 'deviceOauth'
+                                        ? <DeviceOAuth onSwitchToOldExperience={handleSwitchToOldExperience} />
+                                        : <MHLM onSwitchToNewExperience={switchToNewExperience} />}
                                 </div>
                                 <div role="tabpanel" className={`tab-pane ${nlmActive}`} id="nlm" aria-labelledby="nlm-tab">
                                     <NLM />
