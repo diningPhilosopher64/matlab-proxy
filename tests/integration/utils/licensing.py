@@ -109,10 +109,9 @@ def _verify_licensing(page):
 
 def _select_mhlm_tab(matlab_proxy_page):
     """Selects the classic MHLM experience when Device OAuth is the default.
-
-    Integrations without device-code sign-in already render MHLM. Device-code
-    integrations expose MHLM through an in-panel experience switch instead of
-    a separate tab.
+    Device-code integrations first surface a "Switch to old experience" button that reveals
+    the classic licensing tabs, after which the Online License Manager tab must
+    be selected to show the MHLM form.
     """
     online_license_tab = matlab_proxy_page.locator("#onlineLicense-tab")
     expect(
@@ -121,11 +120,12 @@ def _select_mhlm_tab(matlab_proxy_page):
     ).to_be_visible(timeout=TIMEOUTS["MHLM_VISIBLE"])
     online_license_tab.click()
 
-    mhlm_div = matlab_proxy_page.locator("#MHLM")
-    if not mhlm_div.is_visible():
-        switch_to_old_experience = matlab_proxy_page.get_by_role(
-            "button", name="Switch to old experience"
-        )
+    # Device-code integrations surface a "Switch to old experience" button that
+    # reveals the classic MHLM form.
+    switch_to_old_experience = matlab_proxy_page.get_by_role(
+        "button", name="Switch to old experience"
+    )
+    if switch_to_old_experience.count() > 0:
         expect(
             switch_to_old_experience,
             "Wait for the classic online licensing switch to appear",
