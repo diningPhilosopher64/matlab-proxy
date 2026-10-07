@@ -227,21 +227,16 @@ function DeviceOAuth ({ onSwitchToOldExperience = null }) {
         }
     }, [matlabVersionOnPath, handleStartDeviceFlow]);
 
-    // An expired code cannot be reused. Request its replacement immediately so
-    // retrying bypasses the introductory Start screen and returns to the pending
-    // "Finish Signing in by:" screen as soon as the server supplies the new code.
+    // A terminal authorization error requires a new device flow. Request it
+    // immediately so retrying bypasses the introductory Start screen and returns
+    // to the pending "Finish Signing in by:" screen with a fresh code and timer.
     const handleErrorSignIn = useCallback(() => {
-        if (!isDeviceCodeExpired) {
-            setStatus('idle');
-            return;
-        }
-
         deadlineRef.current = null;
         setDeviceInfo(null);
         setRemainingSecs(null);
         setCopied(false);
         handleStartDeviceFlow();
-    }, [handleStartDeviceFlow, isDeviceCodeExpired]);
+    }, [handleStartDeviceFlow]);
 
     const switchToOldExperienceLink = onSwitchToOldExperience && (
         <div className="online-experience-switch">
@@ -382,7 +377,7 @@ function DeviceOAuth ({ onSwitchToOldExperience = null }) {
     if (status === 'success') {
         return (
             <div id="DeviceOAuth">
-                <h2>Authorization Successful</h2>
+                <h2>Sign in Successful</h2>
                 <p>MATLAB will start automatically.</p>
             </div>
         );
@@ -391,7 +386,7 @@ function DeviceOAuth ({ onSwitchToOldExperience = null }) {
     if (status === 'error') {
         const errorHeading = isDeviceCodeExpired
             ? 'Code expired'
-            : 'Authorization Failed';
+            : 'Sign in Failed';
 
         return (
             <div id="DeviceOAuth">

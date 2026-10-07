@@ -87,10 +87,24 @@ describe('DeviceOAuth Component', () => {
             headers: { 'content-type': 'application/json' }
         });
 
-        fetchMock.post('./device_authorize', {
-            status: 500,
-            body: { error: 'Failed to reach OAuth server' },
-            headers: { 'content-type': 'application/json' }
+        let authorizeAttempts = 0;
+        fetchMock.post('./device_authorize', () => {
+            authorizeAttempts += 1;
+            if (authorizeAttempts === 1) {
+                return {
+                    status: 500,
+                    body: { error: 'Failed to reach OAuth server' },
+                    headers: { 'content-type': 'application/json' }
+                };
+            }
+            return {
+                body: {
+                    user_code: 'NEW-CODE',
+                    verification_uri: 'https://www.mathworks.com/mwlogin',
+                    expires_in: 600
+                },
+                headers: { 'content-type': 'application/json' }
+            };
         });
 
         const { getByRole, getByText, findByRole, findByText } = render(<DeviceOAuth />, { initialState });
@@ -107,9 +121,13 @@ describe('DeviceOAuth Component', () => {
         // treatment as the Information panel) so the error stands out.
         expect(errorMessage.closest('.alert.alert-danger')).not.toBeNull();
 
-        // Clicking "Sign in" returns to the Start screen.
+        // Clicking "Sign in" immediately starts a fresh flow.
         fireEvent.click(getByRole('button', { name: 'Sign in' }));
-        expect(getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+        await waitFor(() => {
+            expect(authorizeAttempts).toBe(2);
+            expect(getByText('NEW-CODE')).toBeInTheDocument();
+            expect(getByText('Code expires in: 10:00')).toBeInTheDocument();
+        });
     });
 
     it('should rehydrate the pending flow from a poll response after a refresh', async () => {
@@ -235,6 +253,48 @@ describe('DeviceOAuth Component', () => {
             expect(getByText('Failed to reach OAuth server')).toBeInTheDocument();
         });
         expect(() => getByText('Code expired')).toThrow();
+    });
+
+    it('should start a fresh flow directly after the user denies authorization', async () => {
+        let pollCount = 0;
+        fetchMock.get('./poll_device_token', () => {
+            pollCount += 1;
+            if (pollCount === 1) {
+                return {
+                    status: 403,
+                    body: { status: 'error', error: 'User denied authorization' },
+                    headers: { 'content-type': 'application/json' }
+                };
+            }
+            return {
+                body: {
+                    status: 'pending',
+                    user_code: 'NEW-CODE',
+                    verification_uri: 'https://www.mathworks.com/mwlogin',
+                    expires_in: 600
+                },
+                headers: { 'content-type': 'application/json' }
+            };
+        });
+        fetchMock.post('./device_authorize', {
+            body: {
+                user_code: 'NEW-CODE',
+                verification_uri: 'https://www.mathworks.com/mwlogin',
+                expires_in: 600
+            },
+            headers: { 'content-type': 'application/json' }
+        });
+
+        const { findByText, getByRole, getByText } = render(<DeviceOAuth />, { initialState });
+
+        await findByText('User denied authorization');
+        fireEvent.click(getByRole('button', { name: 'Sign in' }));
+
+        await waitFor(() => {
+            expect(fetchMock.called('./device_authorize')).toBe(true);
+            expect(getByText('NEW-CODE')).toBeInTheDocument();
+            expect(getByText('Code expires in: 10:00')).toBeInTheDocument();
+        });
     });
 
     it('should copy the user code to the clipboard when Copy is clicked', async () => {
