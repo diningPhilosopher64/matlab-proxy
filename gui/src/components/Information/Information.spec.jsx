@@ -63,8 +63,8 @@ describe('Information Component', () => {
 
         const licensingInfo = getByText('Licensing:');
 
-        expect(licensingInfo.nextSibling.textContent).toContain(
-            initialState.serverStatus.licensingInfo.emailAddress
+        expect(licensingInfo.nextSibling.textContent).toBe(
+            `Online License Manager (${initialState.serverStatus.licensingInfo.emailAddress})`
         );
     });
 
@@ -77,9 +77,8 @@ describe('Information Component', () => {
 
         const licensingInfo = getByText('Licensing:');
 
-        // OAuth shares the MHLM "Online License Manager (<email>)" label.
-        expect(licensingInfo.nextSibling.textContent).toContain(
-            initialState.serverStatus.licensingInfo.emailAddress
+        expect(licensingInfo.nextSibling.textContent).toBe(
+            `MathWorks Account (${initialState.serverStatus.licensingInfo.emailAddress})`
         );
     });
 

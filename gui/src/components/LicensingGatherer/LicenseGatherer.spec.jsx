@@ -164,7 +164,7 @@ describe('LicenseGatherer component', () => {
         expect(container.querySelector('#MHLM')).toBeInTheDocument();
 
         fireEvent.load(container.querySelector('#loginframe'));
-        fireEvent.click(getByRole('button', { name: 'Switch back to new experience' }));
+        fireEvent.click(getByRole('button', { name: 'Switch to new experience' }));
 
         expect(container.querySelector('#MHLM')).not.toBeInTheDocument();
         expect(container.querySelector('#DeviceOAuth')).toBeInTheDocument();
@@ -194,7 +194,7 @@ describe('LicenseGatherer component', () => {
         fireEvent.click(await findByRole('button', { name: 'Switch to old experience' }));
 
         fireEvent.load(container.querySelector('#loginframe'));
-        fireEvent.click(await findByRole('button', { name: 'Switch back to new experience' }));
+        fireEvent.click(await findByRole('button', { name: 'Switch to new experience' }));
 
         expect(await findByText('Code expires in: 4:00')).toBeInTheDocument();
         expect(pollCount).toBeGreaterThanOrEqual(2);

@@ -115,7 +115,7 @@ describe('DeviceOAuth Component', () => {
         // The error message from the backend should be surfaced.
         const errorMessage = await findByText('Failed to reach OAuth server');
         expect(errorMessage).toBeInTheDocument();
-        expect(getByText('Authorization Failed')).toBeInTheDocument();
+        expect(getByText('Sign in Failed')).toBeInTheDocument();
 
         // The message must render inside the alert-danger container (same
         // treatment as the Information panel) so the error stands out.
@@ -185,7 +185,7 @@ describe('DeviceOAuth Component', () => {
         const { getByText } = render(<DeviceOAuth />, { initialState });
 
         await waitFor(() => {
-            expect(getByText('Authorization Successful')).toBeInTheDocument();
+            expect(getByText('Sign in Successful')).toBeInTheDocument();
             expect(window.location.replace).toHaveBeenCalled();
         });
     });
@@ -239,7 +239,7 @@ describe('DeviceOAuth Component', () => {
         expect(() => getByText('Sign in to your MathWorks Account to start MATLAB. You will receive a security code.')).toThrow();
     });
 
-    it('should keep the authorization-failed heading for other poll errors', async () => {
+    it('should keep the sign-in-failed heading for other poll errors', async () => {
         fetchMock.get('./poll_device_token', {
             status: 502,
             body: { status: 'error', error: 'Failed to reach OAuth server' },
@@ -249,7 +249,7 @@ describe('DeviceOAuth Component', () => {
         const { getByText } = render(<DeviceOAuth />, { initialState });
 
         await waitFor(() => {
-            expect(getByText('Authorization Failed')).toBeInTheDocument();
+            expect(getByText('Sign in Failed')).toBeInTheDocument();
             expect(getByText('Failed to reach OAuth server')).toBeInTheDocument();
         });
         expect(() => getByText('Code expired')).toThrow();

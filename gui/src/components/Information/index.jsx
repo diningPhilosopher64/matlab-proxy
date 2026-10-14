@@ -43,6 +43,7 @@ function Information ({
             info = {
                 label: `Online License Manager (${licensingInfo.emailAddress})`
             };
+            break;
         case 'oauth':
             info = {
                 label: `MathWorks Account (${licensingInfo.emailAddress})`

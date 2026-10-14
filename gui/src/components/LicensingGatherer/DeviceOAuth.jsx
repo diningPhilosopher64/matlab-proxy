@@ -4,7 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useInterval } from 'react-use';
 import PropTypes from 'prop-types';
-import { requestServerStatus } from '../../actionCreators';
+import { fetchWithTimeout, requestServerStatus } from '../../actionCreators';
 import {
     selectMatlabVersionOnPath,
     selectSupportedMatlabVersions
@@ -146,7 +146,10 @@ function DeviceOAuth ({ onSwitchToOldExperience = null }) {
             }
 
             try {
-                const response = await fetch('./poll_device_token');
+                const response = await fetchWithTimeout(dispatch, './poll_device_token');
+                if (!response) {
+                    throw new Error('Unable to check sign-in status. Please try again.');
+                }
                 const data = await response.json();
 
                 if (generation !== pollGenerationRef.current) { return; }
@@ -157,16 +160,21 @@ function DeviceOAuth ({ onSwitchToOldExperience = null }) {
                     pollTimeoutRef.current = setTimeout(poll, 1000);
                 }
             } catch (error) {
-                // Network errors - keep polling (until the deadline).
+                // Only retry when an active device flow provides a deadline.
                 if (mountedRef.current && generation === pollGenerationRef.current) {
-                    pollTimeoutRef.current = setTimeout(poll, 1000);
+                    if (deadlineRef.current === null) {
+                        setStatus('error');
+                        setErrorMessage('Unable to check sign-in status. Please try again.');
+                    } else {
+                        pollTimeoutRef.current = setTimeout(poll, 1000);
+                    }
                 }
             }
         };
         // Poll immediately so a refresh rehydrates without a visible delay; the
         // backend's smart caching keeps this from hammering the OAuth server.
         poll();
-    }, [applyPollData]);
+    }, [applyPollData, dispatch]);
 
     // On mount, ask the server whether a device flow is already in progress (it
     // survives page refreshes, which wipe this component's state). If so we
@@ -188,11 +196,15 @@ function DeviceOAuth ({ onSwitchToOldExperience = null }) {
 
         try {
             const body = matlabVersionOnPath ? {} : { matlabVersion: selectedMatlabVersion };
-            const response = await fetch('./device_authorize', {
+            const response = await fetchWithTimeout(dispatch, './device_authorize', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
-            });
+            }, 15000);
+
+            if (!response) {
+                throw new Error('Failed to initiate device authorization. Please try again.');
+            }
 
             if (!response.ok) {
                 const error = await response.json();
@@ -213,7 +225,7 @@ function DeviceOAuth ({ onSwitchToOldExperience = null }) {
             setErrorMessage(error.message);
             setIsDeviceCodeExpired(false);
         }
-    }, [startPolling, matlabVersionOnPath, selectedMatlabVersion]);
+    }, [startPolling, matlabVersionOnPath, selectedMatlabVersion, dispatch]);
 
     // The "Start Device Authorization" button. If the MATLAB version could not be
     // determined, first route to the version dropdown and collect it; only once the

@@ -203,7 +203,7 @@ function MHLM ({ mhlmLicensingInfo = null, onSwitchToNewExperience = null }) {
             {showExperienceSwitch && (
                 <div className="online-experience-switch">
                     <button type="button" onClick={onSwitchToNewExperience}>
-                        Switch back to new experience
+                        Switch to new experience
                     </button>
                 </div>
             )}
