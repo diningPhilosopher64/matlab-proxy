@@ -7,8 +7,6 @@ from typing import Final, List
 CONNECTOR_SECUREPORT_FILENAME: Final[str] = "connector.securePort"
 VERSION_INFO_FILE_NAME: Final[str] = "VersionInfo.xml"
 MAX_HTTP_REQUEST_SIZE: Final[int] = 500_000_000  # 500MB
-# Per-instance session cookies can collectively exceed aiohttp's 8190-byte default.
-MAX_HTTP_HEADER_FIELD_SIZE: Final[int] = 128 * 1024  # 128KiB
 MAX_WEBSOCKET_MESSAGE_SIZE_IN_MB: Final[int] = 500_000_000  # 500MB
 MATLAB_LOGS_FILE_NAME: Final[str] = "matlab_logs.txt"
 USER_CODE_OUTPUT_FILE_NAME: Final[str] = "startup_code_output.txt"

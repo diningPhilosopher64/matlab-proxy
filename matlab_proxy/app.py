@@ -1200,15 +1200,6 @@ async def cleanup_background_tasks(app):
     await util.cancel_tasks(server_tasks)
 
 
-def _create_app_runner(app):
-    """Create an aiohttp runner that accepts browser cookie headers."""
-    return web.AppRunner(
-        app,
-        access_log=logger if mwi_env.is_web_logging_enabled() else None,
-        max_field_size=constants.MAX_HTTP_HEADER_FIELD_SIZE,
-    )
-
-
 def configure_and_start(app):
     """Configure the site for the app and update app with appropriate values
 
@@ -1233,7 +1224,9 @@ def configure_and_start(app):
     )
 
     # Setup runner
-    runner = _create_app_runner(app)
+    runner = web.AppRunner(
+        app, access_log=logger if mwi_env.is_web_logging_enabled() else None
+    )
     loop.run_until_complete(runner.setup())
 
     # Prepare site to start, then set port of the app.
