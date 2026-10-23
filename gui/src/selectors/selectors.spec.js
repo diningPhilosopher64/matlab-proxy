@@ -341,8 +341,8 @@ describe('selectors', () => {
 
         test('selectOnlineAuthMethod should return the online_auth_method from envConfig', () => {
             modifiedState = _.cloneDeep(state);
-            modifiedState.envConfig.online_auth_method = 'device_code';
-            expect(selectOnlineAuthMethod(modifiedState)).toBe('device_code');
+            modifiedState.envConfig.online_auth_method = 'oauth';
+            expect(selectOnlineAuthMethod(modifiedState)).toBe('oauth');
         });
 
         test('selectOnlineAuthMethod should default to mhlm when online_auth_method is not provided', () => {

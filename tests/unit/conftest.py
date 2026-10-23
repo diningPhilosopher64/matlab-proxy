@@ -1,12 +1,13 @@
-# Copyright 2020-2022 The MathWorks, Inc.
+# Copyright 2020-2026 The MathWorks, Inc.
 
 """The conftest.py file is run by the pytest framework for setting things up for the test session."""
 
+import asyncio
 import os
 import shutil
-import asyncio
 
 import pytest
+
 from matlab_proxy import settings, util
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 
@@ -16,7 +17,7 @@ def pytest_generate_tests(metafunc):
 
 
 def __get_matlab_config_file():
-    return settings.get(dev=True)["matlab_config_file"]
+    return settings.get(dev=True).matlab_config_file
 
 
 def __delete_matlab_config_file():

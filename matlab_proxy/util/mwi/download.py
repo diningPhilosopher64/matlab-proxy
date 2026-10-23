@@ -1,4 +1,4 @@
-# Copyright 2024-2025 The MathWorks, Inc.
+# Copyright 2024-2026 The MathWorks, Inc.
 
 # This file contains functions required to enable downloads from the file browser
 from matlab_proxy.util.mwi import logger as mwi_logger
@@ -27,7 +27,7 @@ def is_download_request(req):
     ```
     """
 
-    base_url = req.app["settings"]["base_url"]
+    base_url = req.app["settings"].base_url
     if _is_null_base_url(base_url):
         return req.rel_url.path.startswith("/download")
     else:
@@ -62,7 +62,7 @@ async def get_download_url(req):
         state = req.app["state"]
         headers = state._get_token_auth_headers()
         url = mwi.embedded_connector.helpers.get_mvm_endpoint(
-            state.settings["mwi_server_url"]
+            state.settings.mwi_server_url
         )
         resp_json = await mwi.embedded_connector.send_request(
             url=url,
@@ -79,7 +79,7 @@ async def get_download_url(req):
             # No error detected, proceed to fetch the results
             download_url = resp["results"][0]
             logger.debug(f"download_url: {download_url}")
-            base_url = req.app["settings"]["base_url"]
+            base_url = req.app["settings"].base_url
             return (
                 download_url
                 if _is_null_base_url(base_url)
@@ -123,7 +123,7 @@ def _get_download_payload_path(req):
         A string representing the file system path to the requested download payload,
         or None if the request is not a download request.
     """
-    base_url = req.app["settings"]["base_url"]
+    base_url = req.app["settings"].base_url
     if is_download_request(req):
         from pathlib import Path
 

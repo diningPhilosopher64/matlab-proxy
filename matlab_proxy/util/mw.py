@@ -261,15 +261,19 @@ async def device_authorize(
         return await resp.json()
 
 
-async def check_device_auth_status(oauth_host, device_code, client_id):
+async def check_device_auth_status(
+    oauth_host, device_code, client_id, *, client_session: aiohttp.ClientSession
+):
     """Check device authorization status using the lightweight GET endpoint.
 
     This is cheaper than the token endpoint and doesn't consume token rate limits.
+    The caller owns the session and is responsible for closing it.
 
     Args:
         oauth_host (str): OAuth server base URL.
         device_code (str): The device code from device authorization.
         client_id (str): The OAuth client id.
+        client_session (aiohttp.ClientSession): Session reused for status polls.
 
     Returns:
         dict: With a "status" field: "PENDING", "AUTHORIZED", "TOKEN_ISSUED",
@@ -280,10 +284,7 @@ async def check_device_auth_status(oauth_host, device_code, client_id):
     )
     url = f"{oauth_host}/oauth2/v1/oauth/device/authstatus?{params}"
 
-    async with (
-        aiohttp.ClientSession(trust_env=True) as client_session,
-        client_session.get(url) as resp,
-    ):
+    async with client_session.get(url) as resp:
         if resp.status != 200:
             text = await resp.text()
             raise OnlineLicensingError(

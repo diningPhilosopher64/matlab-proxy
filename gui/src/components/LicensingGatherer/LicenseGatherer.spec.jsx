@@ -110,7 +110,7 @@ describe('LicenseGatherer component', () => {
         expect(existingLicenseTabContent).toBeInTheDocument();
     });
 
-    it('should render the three-tab MHLM-only layout when online_auth_method is not device_code', () => {
+    it('should render the three-tab MHLM-only layout when online_auth_method is not oauth', () => {
         // Default state's envConfig has no online_auth_method, which the selector
         // treats as 'mhlm'.
         const { container } = render(<LicenseGatherer />, { initialState });
@@ -127,7 +127,7 @@ describe('LicenseGatherer component', () => {
     });
 
     it('should render Device OAuth by default in the three-tab Online License Manager layout', async () => {
-        initialState.envConfig.online_auth_method = 'device_code';
+        initialState.envConfig.online_auth_method = 'oauth';
         fetchMock.get('./poll_device_token', {
             body: { status: 'idle' },
             headers: { 'content-type': 'application/json' }
@@ -146,7 +146,7 @@ describe('LicenseGatherer component', () => {
     });
 
     it('should switch experiences without reloading and retain the choice across tab changes', async () => {
-        initialState.envConfig.online_auth_method = 'device_code';
+        initialState.envConfig.online_auth_method = 'oauth';
         fetchMock.get('./poll_device_token', {
             body: { status: 'idle' },
             headers: { 'content-type': 'application/json' }
@@ -171,7 +171,7 @@ describe('LicenseGatherer component', () => {
     });
 
     it('should resume an active device flow with the remaining server-side lifetime after switching back', async () => {
-        initialState.envConfig.online_auth_method = 'device_code';
+        initialState.envConfig.online_auth_method = 'oauth';
         let pollCount = 0;
         fetchMock.get('./poll_device_token', () => {
             pollCount += 1;

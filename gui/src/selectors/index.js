@@ -41,7 +41,7 @@ export const selectHasFetchedEnvConfig = createSelector(
     envConfig => envConfig !== null
 );
 
-// Which online sign-in method to render: 'device_code' (OAuth device code flow)
+// Which online sign-in method to render: 'oauth' (OAuth device code flow)
 // or 'mhlm' (legacy iframe). Defaults to 'mhlm' when not provided by the backend.
 export const selectOnlineAuthMethod = createSelector(
     selectEnvConfig,

@@ -8,6 +8,8 @@ import pytest
 from matlab_proxy import app, settings
 from matlab_proxy.app_state import AppState
 from matlab_proxy.constants import ExitReason
+from matlab_proxy.licensing import ExistingLicense
+from matlab_proxy.settings import Settings
 from tests.unit.fixtures.fixture_auth import (
     patch_authenticate_access_decorator,  # noqa: F401
 )
@@ -17,21 +19,21 @@ from tests.unit.test_constants import FIVE_MAX_TRIES
 @pytest.fixture
 def sample_settings(tmp_path):
     tmp_file = tmp_path / "parent_1" / "parent_2" / "tmp_file.json"
-    return {
-        "error": None,
-        "warnings": [],
-        "matlab_config_file": tmp_file,
-        "is_xvfb_available": True,
-        "is_windowmanager_available": True,
-        "mwi_server_url": "dummy",
-        "mwi_logs_root_dir": Path(settings.get_mwi_config_folder(dev=True)),
-        "app_port": 12345,
-        "mwapikey": "asdf",
-        "has_custom_code_to_execute": False,
-        "mwi_idle_timeout": None,
-        "mwi_is_token_auth_enabled": False,
-        "integration_name": "MATLAB Desktop",
-    }
+    return Settings(
+        error=None,
+        warnings=[],
+        matlab_config_file=tmp_file,
+        is_xvfb_available=True,
+        is_windowmanager_available=True,
+        mwi_server_url="dummy",
+        mwi_logs_root_dir=Path(settings.get_mwi_config_folder(dev=True)),
+        app_port=12345,
+        mwapikey="asdf",
+        has_custom_code_to_execute=False,
+        mwi_idle_timeout=None,
+        mwi_is_token_auth_enabled=False,
+        integration_name="MATLAB Desktop",
+    )
 
 
 class TestAppStateExitReason:
@@ -49,9 +51,9 @@ class TestAppStateExitReason:
 
     async def test_idle_timer_sets_exit_reason_on_expiry(self, sample_settings, mocker):
         idle_timeout = 1
-        sample_settings["mwi_idle_timeout"] = idle_timeout
+        sample_settings.mwi_idle_timeout = idle_timeout
         app_state = AppState(settings=sample_settings)
-        app_state.licensing = {"type": "existing_license"}
+        app_state.licensing = ExistingLicense()
 
         mock_loop = asyncio.new_event_loop()
         mocker.patch(

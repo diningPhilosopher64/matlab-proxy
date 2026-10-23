@@ -1,14 +1,11 @@
 # Copyright 2020-2026 The MathWorks, Inc.
 
 import asyncio
-import base64
-import hashlib
 import json
 import mimetypes
 import pkgutil
 import secrets
 import sys
-import time
 
 import aiohttp
 from aiohttp import client_exceptions, web
@@ -17,18 +14,21 @@ from aiohttp_session.cookie_storage import EncryptedCookieStorage
 from cryptography import fernet
 
 import matlab_proxy
-from matlab_proxy import constants, settings, util
+from matlab_proxy import constants, responses, settings, util
 from matlab_proxy.app_state import AppState
 from matlab_proxy.constants import IS_CONCURRENCY_CHECK_ENABLED, ExitReason
-from matlab_proxy.util import mw, mwi
-from matlab_proxy.util.dpop import DPoPKey
+from matlab_proxy.licensing.routes import (
+    device_authorize,
+    licensing_info_delete,
+    poll_device_token,
+    set_licensing_info,
+    update_entitlement,
+)
+from matlab_proxy.util import mwi
 from matlab_proxy.util.mwi import download, token_auth
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi.exceptions import (
-    AppError,
-    EntitlementError,
     InvalidTokenError,
-    LicensingError,
 )
 
 mimetypes.add_type("font/woff", ".woff")
@@ -52,101 +52,6 @@ mimetypes.add_type("text/javascript", ".mjs")
 
 # Setup logger for the integration and a web logger. Override any default loggers.
 logger = mwi.logger.get(init=True)
-
-
-def marshal_licensing_info(licensing_info):
-    """Gather/Marshal licensing information for MHLM and NLM Licensing types.
-
-    Args:
-        licensing_info (Dict): Contains licensing information
-
-    Returns:
-        Dict: Licensing information specific to the type of Licensing.
-    """
-    if licensing_info is None:
-        return None
-
-    licensing_type = licensing_info.get("type")
-
-    if licensing_type is None:
-        return None
-
-    if licensing_type == "mhlm":
-        return {
-            "type": "mhlm",
-            "emailAddress": licensing_info["email_addr"],
-            "entitlements": licensing_info.get("entitlements", []),
-            "entitlementId": licensing_info.get("entitlement_id", None),
-        }
-    elif licensing_type == "oauth":
-        return {
-            "type": "oauth",
-            "emailAddress": licensing_info.get("email_addr"),
-            "entitlements": licensing_info.get("entitlements", []),
-            "entitlementId": licensing_info.get("entitlement_id", None),
-        }
-    elif licensing_type == "nlm":
-        return {
-            "type": "nlm",
-            "connectionString": licensing_info["conn_str"],
-        }
-    elif licensing_type == "existing_license":
-        return {"type": "existing_license"}
-
-
-def marshal_error(error):
-    """Gather/Marshal error details.
-
-    Args:
-        error (Object): Instance of NetworkLicensingError or OnlineLicensingError or MatlabError
-
-    Returns:
-        Dict: Containing information about the error.
-    """
-    if error is None:
-        return None
-    if isinstance(error, AppError):
-        return {
-            "message": error.message,
-            "logs": error.logs,
-            "type": error.__class__.__name__,
-        }
-    else:
-        return {"message": error.__str__, "logs": "", "type": error.__class__.__name__}
-
-
-def create_status_response(app, loadUrl=None, client_id=None, is_active_client=None):
-    """Send a generic status response about the state of server, MATLAB, MATLAB Licensing and the client session status.
-
-    Args:
-        app (aiohttp.web.Application): Web Server
-        loadUrl (String, optional): Represents the root URL. Defaults to None.
-        client_id (String, optional): Represents the generated client_id when concurrency check is enabled and client does not have a client_id. Defaults to None.
-        is_active_client (Boolean, optional): Represents whether the current client is the active_client when concurrency check is enabled. Defaults to None.
-
-    Returns:
-        JSONResponse: A JSONResponse object containing the generic state of the server, MATLAB, MATLAB Licensing and the client session status.
-    """
-    state = app["state"]
-    status = {
-        "matlab": {
-            "status": state.get_matlab_state(),
-            "busyStatus": state.matlab_busy_state,
-            "version": state.settings["matlab_version"],
-        },
-        "licensing": marshal_licensing_info(state.licensing),
-        "loadUrl": loadUrl,
-        "error": marshal_error(state.error),
-        "warnings": state.warnings,
-        "wsEnv": state.settings.get("ws_env", ""),
-    }
-
-    if client_id:
-        status["clientId"] = client_id
-    if is_active_client is not None:
-        status["isActiveClient"] = is_active_client
-
-    return web.json_response(status)
 
 
 @token_auth.authenticate_access_decorator
@@ -216,30 +121,30 @@ async def get_env_config(req):
         JSONResponse: contains a Dict representing environment specific configuration serialized to JSON
     """
     state = req.app["state"]
-    config = state.settings["env_config"]
+    config = state.settings.env_config
 
     config["isConcurrencyEnabled"] = IS_CONCURRENCY_CHECK_ENABLED
     # In a previously authenticated session, if the url is accessed without the token(using session cookie), send the token as well.
     config["authentication"] = {
-        "enabled": state.settings["mwi_is_token_auth_enabled"],
+        "enabled": state.settings.mwi_is_token_auth_enabled,
         "status": True if await token_auth.authenticate_request(req) else False,
     }
 
     config["matlab"] = {
-        "version": state.settings["matlab_version"],
+        "version": state.settings.matlab_version,
         "supportedVersions": constants.SUPPORTED_MATLAB_VERSIONS,
-        "rootPath": str(state.settings.get("matlab_path", "")),
+        "rootPath": str(state.settings.matlab_path),
     }
 
-    config["browserTitle"] = state.settings["browser_title"]
+    config["browserTitle"] = state.settings.browser_title
 
     # Tells the frontend which online sign-in UI to render: the OAuth device code
-    # flow ("device_code") or the legacy MHLM iframe ("mhlm").
+    # flow ("oauth") or the legacy MHLM iframe ("mhlm").
     # The frontend will fall back to "mhlm" if the server does not support device code flow.
-    config["online_auth_method"] = state.settings.get("online_auth_method", "mhlm")
+    config["online_auth_method"] = state.settings.online_auth_method
 
     # Send timeout duration for the idle timer as part of the response
-    config["idleTimeoutDuration"] = state.settings["mwi_idle_timeout"]
+    config["idleTimeoutDuration"] = state.settings.mwi_idle_timeout
 
     return web.json_response(config)
 
@@ -267,7 +172,7 @@ async def get_status(req):
         is_desktop, client_id, transfer_session
     )
 
-    return create_status_response(
+    return responses.create_status_response(
         req.app, client_id=generated_client_id, is_active_client=is_active_client
     )
 
@@ -284,7 +189,7 @@ async def authenticate(req):
     error = (
         None
         if is_authenticated
-        else marshal_error(
+        else responses.marshal_error(
             InvalidTokenError(
                 "Token invalid. Please enter a valid token to authenticate"
             )
@@ -312,7 +217,7 @@ async def start_matlab(req):
         JSONResponse: JSONResponse object containing updated information on the state of MATLAB among other information.
     """
     state = req.app["state"]
-    cookie_jar = req.app["settings"]["cookie_jar"]
+    cookie_jar = req.app["settings"].cookie_jar
 
     if cookie_jar:
         cookie_jar.clear()
@@ -320,7 +225,7 @@ async def start_matlab(req):
     # Start MATLAB
     await state.start_matlab(restart_matlab=True)
 
-    return create_status_response(req.app)
+    return responses.create_status_response(req.app)
 
 
 @token_auth.authenticate_access_decorator
@@ -337,394 +242,7 @@ async def stop_matlab(req):
 
     await state.stop_matlab()
 
-    return create_status_response(req.app)
-
-
-@token_auth.authenticate_access_decorator
-async def set_licensing_info(req):
-    """API Endpoint to set licensing information on the server side.
-
-    Args:
-        req (HTTPRequest): HTTPRequest Object
-
-    Raises:
-        Exception: If Licensing type is neither MHLM nor NLM.
-        web.HTTPBadRequest: If any error with Licensing.
-
-    Returns:
-        JSONResponse: JSONResponse object containing updated information on the state of MATLAB among other information.
-    """
-    state = req.app["state"]
-
-    data = await req.json()
-    lic_type = data.get("type")
-
-    try:
-        if lic_type == "nlm":
-            await state.set_licensing_nlm(data.get("connectionString"))
-
-        elif lic_type == "mhlm":
-            # If matlab version could not be determined on startup update
-            # the value received from the front-end.
-            if not state.settings.get(
-                "matlab_version_determined_on_startup"
-            ) and data.get("matlabVersion"):
-                state.settings["matlab_version"] = data.get("matlabVersion")
-
-            await state.set_licensing_mhlm(
-                data.get("token"), data.get("emailAddress"), data.get("sourceId")
-            )
-            # The user committed to the classic flow. Any device authorization
-            # left pending while that experience was hidden is no longer useful,
-            # so discard its in-memory secrets instead of retaining them until a
-            # future poll notices the code has expired.
-            _clear_device_state(state)
-
-        elif lic_type == "existing_license":
-            state.set_licensing_existing_license()
-
-        else:
-            raise Exception(
-                'License type must be "NLM" or "MHLM" or "ExistingLicense"!'
-            )
-    except Exception:
-        raise web.HTTPBadRequest(text="Error with licensing!")
-
-    # This is true for a user who has only one license associated with their account
-    await __start_matlab_if_licensed(state)
-
-    return create_status_response(req.app)
-
-
-@token_auth.authenticate_access_decorator
-async def update_entitlement(req):
-    """API endpoint to update selected entitlement to start MATLAB with.
-
-    Args:
-        req (HTTPRequest): HTTPRequest Object
-
-    Returns:
-        JSONResponse: JSONResponse object containing updated information on the state of MATLAB among other information.
-    """
-    state = req.app["state"]
-    data = await req.json()
-    lic_type = data.get("type")
-
-    # Set the entitlement id only if we are not already licensed
-    if lic_type in ("mhlm", "oauth") and not state.is_licensed():
-        entitlement_id = data.get("entitlement_id")
-        logger.debug(f"Received type: {lic_type}, entitlement_id: {entitlement_id}")
-        await state.update_user_selected_entitlement_info(entitlement_id)
-        await __start_matlab_if_licensed(state)
-
-    return create_status_response(req.app)
-
-
-async def __start_matlab_if_licensed(state):
-    # Start MATLAB if licensing is complete
-    if state.is_licensed() and not isinstance(state.error, LicensingError):
-        await state.start_matlab(restart_matlab=True)
-
-
-def _clear_device_state(state):
-    """Clear all transient device code flow state after a terminal outcome.
-
-    This includes the PKCE verifier/challenge, the DPoP keypair, and the session
-    id - not just the polling bookkeeping - so no auth secrets linger in memory
-    once the flow has succeeded, been denied, expired, or errored.
-    """
-    for key in (
-        "device_code",
-        "device_code_interval",
-        "device_auth_cached_status",
-        "device_auth_last_check",
-        "code_verifier",
-        "code_challenge",
-        "dpop_key",
-        "oauth_session_id",
-        "device_user_code",
-        "device_verification_uri",
-        "device_verification_uri_complete",
-        "device_code_expiry",
-    ):
-        state.settings[key] = None
-
-
-@token_auth.authenticate_access_decorator
-async def device_authorize(req):
-    """Initiate the OAuth 2.0 Device Code flow.
-
-    Returns user_code, verification_uri, and polling info to the frontend.
-    The device_code is kept server-side (secret) and never sent to the frontend.
-    """
-    state = req.app["state"]
-
-    # If the MATLAB version could not be determined on startup, the frontend
-    # collects it from the user (via a dropdown) BEFORE starting the flow and sends
-    # it here - mirroring how MHLM sends matlabVersion with set_licensing_info. We
-    # record it now so it is known by the time poll_device_token licenses and starts
-    # MATLAB, which is why the device flow needs no separate version-commit step.
-    try:
-        data = await req.json()
-    except Exception:
-        data = {}
-    if not state.settings.get("matlab_version_determined_on_startup") and data.get(
-        "matlabVersion"
-    ):
-        state.settings["matlab_version"] = data.get("matlabVersion")
-
-    # Generate PKCE parameters (the code_verifier is used during token exchange).
-    code_verifier = secrets.token_urlsafe(32)
-    code_challenge_bytes = hashlib.sha256(code_verifier.encode()).digest()
-    code_challenge = base64.urlsafe_b64encode(code_challenge_bytes).decode().rstrip("=")
-
-    state.settings["code_verifier"] = code_verifier
-    state.settings["code_challenge"] = code_challenge
-
-    # Generate a fresh DPoP keypair for this session. The SAME key must be reused
-    # for token exchange and all subsequent refreshes.
-    dpop_key = DPoPKey()
-    state.settings["dpop_key"] = dpop_key
-
-    source_id = state.settings.get("oauth_session_id") or secrets.token_hex(8)
-    state.settings["oauth_session_id"] = source_id
-
-    try:
-        device_response = await mw.device_authorize(
-            state.settings["oauth_endpoint"],
-            state.settings["oauth_client_id"],
-            code_challenge,
-            source_id,
-            dpop_key=dpop_key,
-        )
-
-        # Store the device_code server-side (NEVER sent to the frontend).
-        state.settings["device_code"] = device_response["device_code"]
-        state.settings["device_code_interval"] = device_response.get("interval", 5)
-        state.settings["device_auth_last_check"] = None
-        state.settings["device_auth_cached_status"] = None
-
-        # Persist the user-facing fields and an absolute deadline so poll_device_token
-        # can re-serve them on every pending poll. This lets the frontend rehydrate the
-        # same code/URL/countdown after a page refresh instead of starting a new flow.
-        expires_in = device_response.get(
-            "expires_in", constants.OAUTH_DEVICE_CODE_LIFESPAN_SECONDS
-        )
-        state.settings["device_user_code"] = device_response["user_code"]
-        state.settings["device_verification_uri"] = device_response["verification_uri"]
-        state.settings["device_verification_uri_complete"] = device_response.get(
-            "verification_uri_complete"
-        )
-        state.settings["device_code_expiry"] = time.time() + expires_in
-
-        # Return only user-facing info.
-        return web.json_response(
-            {
-                "user_code": device_response["user_code"],
-                "verification_uri": device_response["verification_uri"],
-                "verification_uri_complete": device_response.get(
-                    "verification_uri_complete"
-                ),
-                "expires_in": expires_in,
-                "interval": device_response.get("interval", 5),
-            }
-        )
-
-    except Exception as e:
-        logger.error(f"Device authorization error: {e}")
-        return web.json_response(
-            {"error": f"Device authorization error: {e!s}"},
-            status=502,
-        )
-
-
-@token_auth.authenticate_access_decorator
-async def poll_device_token(req):
-    """Poll for OAuth tokens using the device code flow with smart caching.
-
-    The frontend polls every 1 second. The backend only hits the OAuth server
-    every 'interval' seconds (as specified by the OAuth server).
-    """
-    state = req.app["state"]
-
-    device_code = state.settings.get("device_code")
-    code_verifier = state.settings.get("code_verifier")
-
-    if not device_code or not code_verifier:
-        # No flow in progress (fresh load, or state was cleared after a terminal
-        # outcome). This is not an error - it is the normal pre-Start state, so the
-        # frontend renders the "Start" screen.
-        return web.json_response({"status": "idle"})
-
-    # A flow is in progress but its code has already expired: clear the stale state
-    # and report expiry so the frontend can offer a restart.
-    expiry = state.settings.get("device_code_expiry")
-    if expiry is not None and time.time() >= expiry:
-        _clear_device_state(state)
-        return web.json_response(
-            {"status": "error", "error": "Device code expired"},
-            status=410,
-        )
-
-    def _pending_response():
-        """Build a pending response that echoes the user-facing fields, so the
-        frontend can rehydrate the same code/URL/countdown after a page refresh."""
-        payload = {
-            "status": "pending",
-            "message": "Waiting for user to authorize",
-            "user_code": state.settings.get("device_user_code"),
-            "verification_uri": state.settings.get("device_verification_uri"),
-            "verification_uri_complete": state.settings.get(
-                "device_verification_uri_complete"
-            ),
-        }
-        if expiry is not None:
-            payload["expires_in"] = max(0, int(expiry - time.time()))
-        return web.json_response(payload)
-
-    # Smart caching: only poll the OAuth server every `interval` seconds. On
-    # intermediate frontend polls, return the cached PENDING status.
-    current_time = time.time()
-    last_check = state.settings.get("device_auth_last_check") or 0
-    interval = state.settings.get("device_code_interval") or 5
-    cached_status = state.settings.get("device_auth_cached_status")
-
-    if (current_time - last_check) < interval and cached_status == "PENDING":
-        return _pending_response()
-
-    try:
-        oauth_host = state.settings["oauth_endpoint"]
-        client_id = state.settings["oauth_client_id"]
-
-        auth_status = await mw.check_device_auth_status(
-            oauth_host, device_code, client_id
-        )
-        status_value = auth_status.get("status", "PENDING")
-
-        state.settings["device_auth_last_check"] = current_time
-        state.settings["device_auth_cached_status"] = status_value
-
-        if status_value == "PENDING":
-            return _pending_response()
-
-        elif status_value == "DENIED":
-            _clear_device_state(state)
-            return web.json_response(
-                {"status": "error", "error": "User denied authorization"},
-                status=403,
-            )
-
-        elif status_value == "EXPIRED":
-            _clear_device_state(state)
-            return web.json_response(
-                {"status": "error", "error": "Device code expired"},
-                status=410,
-            )
-
-        elif status_value in ("AUTHORIZED", "TOKEN_ISSUED"):
-            # User authorized! Exchange the device_code for tokens.
-            token_url = f"{oauth_host}/oauth2/v1/oauth/token"
-            dpop_key = state.settings.get("dpop_key")
-
-            token_response = await mw.exchange_device_token(
-                token_url, device_code, client_id, code_verifier, dpop_key=dpop_key
-            )
-
-            await state.set_licensing_from_token_response(token_response)
-            _clear_device_state(state)
-
-            await __start_matlab_if_licensed(state)
-
-            return web.json_response(
-                {
-                    "status": "success",
-                    "licensing": marshal_licensing_info(state.licensing),
-                }
-            )
-
-        else:
-            return _pending_response()
-
-    except EntitlementError as e:
-        # Authorization succeeded, but this account cannot license the selected
-        # MATLAB release. Discard the partially constructed OAuth state and any
-        # stale cached entry, then surface the actionable entitlement message.
-        client_id = state.settings.get("oauth_client_id")
-        if state.licensing and state.licensing.get("type") == "oauth":
-            client_id = state.licensing.get("client_id") or client_id
-        if client_id:
-            state._remove_oauth_client_entry(client_id)
-        state.unset_licensing()
-        _clear_device_state(state)
-        return web.json_response(
-            {"status": "error", "error": e.message},
-            status=403,
-        )
-
-    except Exception as e:
-        # If we were in an AUTHORIZED state and the exchange failed, the flow must
-        # be restarted. For transient errors during the status check, keep polling.
-        if state.settings.get("device_auth_cached_status") in (
-            "AUTHORIZED",
-            "TOKEN_ISSUED",
-        ):
-            _clear_device_state(state)
-            return web.json_response(
-                {
-                    "status": "error",
-                    "error": f"Token exchange failed: {e!s}. Please try again.",
-                },
-                status=500,
-            )
-        logger.trace(f"Transient error during device token poll: {e}")
-        return _pending_response()
-
-
-@token_auth.authenticate_access_decorator
-async def licensing_info_delete(req):
-    """API Endpoint to stop MATLAB and remove licensing details.
-
-    Args:
-        req (HTTPRequest): HTTPRequest Object
-    Returns:
-        JSONResponse: JSONResponse object containing updated information on the state of MATLAB among other information.
-    """
-    state = req.app["state"]
-
-    # Removing license information implies terminating MATLAB
-    await state.stop_matlab()
-
-    # When removing licensing data, if matlab version was fetched from the user, remove it
-    # on the server side to have a complete 'reset'.
-    if state.licensing["type"] in ("mhlm", "oauth") and not state.settings.get(
-        "matlab_version_determined_on_startup"
-    ):
-        state.settings["matlab_version"] = None
-
-    # For OAuth, revoke the refresh token server-side (best-effort) before
-    # discarding it, then remove only the current client's entry from the shared
-    # cache (other integrations' tokens must be preserved), then clear in-memory state.
-    if state.licensing["type"] == "oauth":
-        refresh_token = state.licensing.get("refresh_token")
-        if refresh_token:
-            revoke_url = f"{state.settings['oauth_endpoint']}/oauth2/v1/oauth/revoke"
-            await mw.revoke_oauth_token(
-                revoke_url,
-                state.licensing.get("client_id"),
-                refresh_token,
-                dpop_key=state.licensing.get("dpop_key"),
-            )
-        state._remove_oauth_client_entry(state.licensing.get("client_id"))
-        state.unset_licensing()
-        return create_status_response(req.app)
-
-    # Unset licensing information
-    state.unset_licensing()
-
-    # Persist config information
-    state.persist_config_data()
-
-    return create_status_response(req.app)
+    return responses.create_status_response(req.app)
 
 
 @token_auth.authenticate_access_decorator
@@ -737,16 +255,16 @@ async def shutdown_integration_delete(req):
     state = req.app["state"]
     if state.is_shutting_down:
         logger.debug("Shutdown already in progress")
-        return create_status_response(req.app, "../")
+        return responses.create_status_response(req.app, "../")
 
-    logger.info(f"Shutting down {state.settings['integration_name']}...")
+    logger.info(f"Shutting down {state.settings.integration_name}...")
     state.is_shutting_down = True
 
     try:
         state.exit_reason = ExitReason[req.query.get("reason", "").upper()]
     except KeyError:
         pass
-    res = create_status_response(req.app, "../")
+    res = responses.create_status_response(req.app, "../")
 
     # Schedule the shutdown to happen after the response is sent
     asyncio.create_task(_shutdown_after_response(req.app))
@@ -789,7 +307,7 @@ async def root_redirect(request):
     Returns:
         HTTPResponse: HTTPResponse Object containing the index.html file.
     """
-    base_url = request.app["settings"]["base_url"]
+    base_url = request.app["settings"].base_url
     query_params = f"?{request.query_string}" if request.query_string else ""
     response_url = f"{base_url}/index.html{query_params}"
 
@@ -830,7 +348,7 @@ def make_static_route_table(app):
     from matlab_proxy.gui import static
     from matlab_proxy.gui.static import css, js, media
 
-    base_url = app["settings"]["base_url"]
+    base_url = app["settings"].base_url
 
     table = {}
 
@@ -852,7 +370,7 @@ def make_static_route_table(app):
                         content_type = mimetypes.guess_type(name)[0]
 
                     headers = {"content-type": content_type}
-                    headers.update(app["settings"]["mwi_custom_http_headers"])
+                    headers.update(app["settings"].mwi_custom_http_headers)
 
                     table[f"{base_url}{parent}/{name}"] = {
                         "mod": mod,
@@ -881,10 +399,10 @@ async def matlab_view(req):
 
     state = req.app["state"]
     matlab_port = state.matlab_port
-    matlab_protocol = req.app["settings"]["matlab_protocol"]
-    mwapikey = req.app["settings"]["mwapikey"]
+    matlab_protocol = req.app["settings"].matlab_protocol
+    mwapikey = req.app["settings"].mwapikey
     matlab_base_url = f"{matlab_protocol}://127.0.0.1:{matlab_port}"
-    cookie_jar = req.app["settings"]["cookie_jar"]
+    cookie_jar = req.app["settings"].cookie_jar
 
     cookies_from_jar = cookie_jar.get_dict() if cookie_jar else None
 
@@ -1033,9 +551,7 @@ async def matlab_view(req):
                         # Update the cookies in the cookie jar with the Set-Cookie headers in the response.
                         cookie_jar.update_from_response_headers(headers)
 
-                    response.headers.update(
-                        req.app["settings"]["mwi_custom_http_headers"]
-                    )
+                    response.headers.update(req.app["settings"].mwi_custom_http_headers)
 
                     return response
 
@@ -1200,6 +716,11 @@ async def cleanup_background_tasks(app):
     await util.cancel_tasks(server_tasks)
 
 
+async def cleanup_device_flow(app):
+    """Release any unfinished device flow when the application is cleaned up."""
+    await app["state"].device_flow.clear()
+
+
 def configure_and_start(app):
     """Configure the site for the app and update app with appropriate values
 
@@ -1233,17 +754,17 @@ def configure_and_start(app):
     site = util.prepare_site(app, runner)
 
     # This would be required when MWI_APP_PORT env variable is not set and the site starts on a random port.
-    app["settings"]["app_port"] = site._port
+    app["settings"].app_port = site._port
 
     # Update the site origin in settings.
     # The origin will be used for communicating with the Embedded connector.
-    app["settings"]["mwi_server_url"] = util.get_access_url(app)
+    app["settings"].mwi_server_url = util.get_access_url(app)
 
     loop.run_until_complete(site.start())
 
     logger.debug("Starting MATLAB proxy app")
     logger.debug(
-        f" with base_url: {app['settings']['base_url']} and app_port:{app['settings']['app_port']}."
+        f" with base_url: {app['settings'].base_url} and app_port:{app['settings'].app_port}."
     )
 
     app["state"].create_server_info_file()
@@ -1279,7 +800,7 @@ def create_app(config_name=matlab_proxy.get_default_config_name()):
         for key in app["static_route_table"].keys():
             app.router.add_route("GET", key, static_get)
 
-    base_url = app["settings"]["base_url"]
+    base_url = app["settings"].base_url
     app.router.add_route("GET", f"{base_url}/get_status", get_status)
     app.router.add_route("POST", f"{base_url}/authenticate", authenticate)
     app.router.add_route("GET", f"{base_url}/get_auth_token", get_auth_token)
@@ -1293,7 +814,7 @@ def create_app(config_name=matlab_proxy.get_default_config_name()):
     # Register the OAuth device code flow routes only when this integration has
     # opted in by providing an oauth_client_id. Otherwise the legacy MHLM iframe
     # sign-in is used and these routes are not available.
-    if app["settings"].get("online_auth_method") == "device_code":
+    if app["settings"].online_auth_method == settings.OnlineAuthMethod.OAUTH:
         app.router.add_route("POST", f"{base_url}/device_authorize", device_authorize)
         app.router.add_route("GET", f"{base_url}/poll_device_token", poll_device_token)
 
@@ -1308,6 +829,7 @@ def create_app(config_name=matlab_proxy.get_default_config_name()):
 
     app.router.add_route("*", f"{base_url}/{{proxyPath:.*}}", matlab_view)
     app.on_shutdown.append(cleanup_background_tasks)
+    app.on_cleanup.append(cleanup_device_flow)
 
     return app
 

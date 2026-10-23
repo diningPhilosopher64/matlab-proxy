@@ -11,14 +11,14 @@ import './LicensingGatherer.css';
 
 function LicensingGatherer () {
     const onlineAuthMethod = useSelector(selectOnlineAuthMethod);
-    const useDeviceCode = onlineAuthMethod === 'device_code';
+    const isOAuthEnabled = onlineAuthMethod === 'oauth';
 
     const [activeTab, setActiveTab] = useState('onlineLicense');
     // Device OAuth is the default experience when the integration supports it.
     // Keep this separate from activeTab so the choice survives visits to the NLM
     // and Existing License tabs for the lifetime of this non-dismissable modal.
-    const [onlineExperience, setOnlineExperience] = useState('deviceOauth');
-    const activeOnlineExperience = useDeviceCode
+    const [onlineExperience, setOnlineExperience] = useState('oauth');
+    const activeOnlineExperience = isOAuthEnabled
         ? onlineExperience
         : 'mhlm';
 
@@ -36,8 +36,8 @@ function LicensingGatherer () {
         setActiveTab('existingLicense');
     };
     const handleSwitchToOldExperience = () => setOnlineExperience('mhlm');
-    const handleSwitchToNewExperience = () => setOnlineExperience('deviceOauth');
-    const switchToNewExperience = useDeviceCode
+    const handleSwitchToNewExperience = () => setOnlineExperience('oauth');
+    const switchToNewExperience = isOAuthEnabled
         ? handleSwitchToNewExperience
         : null;
 
@@ -65,7 +65,7 @@ function LicensingGatherer () {
         // dialogs standard dia35): sign-in must complete before the app is
         // usable, so the dialog is non-dismissable by design. Pre-existing
         // behavior shared by all licensing tabs, not specific to device code.
-        <div className={`modal show${useDeviceCode ? ' device-oauth-enabled' : ''}`} id="setup-dialog" tabIndex="-1" role="dialog" aria-labelledby="setup-dialog-title">
+        <div className={`modal show${isOAuthEnabled ? ' device-oauth-enabled' : ''}`} id="setup-dialog" tabIndex="-1" role="dialog" aria-labelledby="setup-dialog-title">
             <div className="modal-dialog modal-dialog-centered" role="document">
                 <div className="modal-content">
                     <div className="modal-body">
@@ -101,7 +101,7 @@ function LicensingGatherer () {
                             </ul>
                             <div id="setup-tabs-content" className="tab-content">
                                 <div role="tabpanel" className={`tab-pane ${onlineLicenseActive}`} id="onlineLicense" aria-labelledby="onlineLicense-tab">
-                                    {activeOnlineExperience === 'deviceOauth'
+                                    {activeOnlineExperience === 'oauth'
                                         ? <DeviceOAuth onSwitchToOldExperience={handleSwitchToOldExperience} />
                                         : <MHLM onSwitchToNewExperience={switchToNewExperience} />}
                                 </div>

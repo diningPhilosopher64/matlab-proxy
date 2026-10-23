@@ -634,9 +634,13 @@ async def test_check_device_auth_status_returns_status(mocker):
     mock_resp = MockResponse(ok=True, payload={"status": "PENDING"})
     mocked = mocker.patch("aiohttp.ClientSession.get", return_value=mock_resp)
 
-    result = await mw.check_device_auth_status(
-        OAUTH_HOST, "secret-device-code", OAUTH_CLIENT_ID
-    )
+    async with aiohttp.ClientSession() as client_session:
+        result = await mw.check_device_auth_status(
+            OAUTH_HOST,
+            "secret-device-code",
+            OAUTH_CLIENT_ID,
+            client_session=client_session,
+        )
 
     assert result == {"status": "PENDING"}
     _, args, _ = mocked.mock_calls[0]
@@ -654,8 +658,14 @@ async def test_check_device_auth_status_error(mocker):
     )
     mocker.patch("aiohttp.ClientSession.get", return_value=mock_resp)
 
-    with pytest.raises(exceptions.OnlineLicensingError):
-        await mw.check_device_auth_status(OAUTH_HOST, "device-code", OAUTH_CLIENT_ID)
+    async with aiohttp.ClientSession() as client_session:
+        with pytest.raises(exceptions.OnlineLicensingError):
+            await mw.check_device_auth_status(
+                OAUTH_HOST,
+                "device-code",
+                OAUTH_CLIENT_ID,
+                client_session=client_session,
+            )
 
 
 async def test_exchange_device_token_returns_tokens(mocker):
@@ -879,7 +889,7 @@ async def test_create_xvfb_process():
     settings_1 = settings.get(dev=True)
 
     # Return if Xvfb is not available
-    if not settings_1["is_xvfb_available"]:
+    if not settings_1.is_xvfb_available:
         return
 
     xvfb_cmd_1, pipe_1 = settings.create_xvfb_cmd()

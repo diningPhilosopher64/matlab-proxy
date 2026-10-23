@@ -58,9 +58,9 @@ def generate_mwi_auth_token_and_hash():
 
 def get_mwi_auth_token_access_str(app_settings):
     """Returns formatted string with mwi token for use with server URL"""
-    if app_settings["mwi_is_token_auth_enabled"]:
-        mwi_auth_token_name = app_settings["mwi_auth_token_name_for_http"]
-        mwi_auth_token = app_settings["mwi_auth_token"]
+    if app_settings.mwi_is_token_auth_enabled:
+        mwi_auth_token_name = app_settings.mwi_auth_token_name_for_http
+        mwi_auth_token = app_settings.mwi_auth_token
         return f"?{mwi_auth_token_name}={mwi_auth_token}"
 
     # Return empty string if token auth is not enabled
@@ -134,7 +134,7 @@ async def _get_token_name(request):
         str : token name
     """
     app_settings = request.app["settings"]
-    return app_settings["mwi_auth_token_name_for_env"]
+    return app_settings.mwi_auth_token_name_for_env
 
 
 def _get_token_name_for_http(request):
@@ -147,7 +147,7 @@ def _get_token_name_for_http(request):
         str : token name
     """
     app_settings = request.app["settings"]
-    return app_settings["mwi_auth_token_name_for_http"]
+    return app_settings.mwi_auth_token_name_for_http
 
 
 async def _get_token(request):
@@ -160,7 +160,7 @@ async def _get_token(request):
         str : token value
     """
     app_settings = request.app["settings"]
-    return app_settings[await _get_token_name(request)]
+    return app_settings.mwi_auth_token
 
 
 async def _get_token_hash(request):
@@ -173,7 +173,7 @@ async def _get_token_hash(request):
         str : token hash
     """
     app_settings = request.app["settings"]
-    return app_settings["mwi_auth_token_hash"]
+    return app_settings.mwi_auth_token_hash
 
 
 async def _store_token_hash_into_session(request):
@@ -194,7 +194,7 @@ def _is_mwi_token_auth_enabled(request):
         request (HTTPRequest) : Used to get access to app settings
     """
     app_settings = request.app["settings"]
-    return app_settings["mwi_is_token_auth_enabled"]
+    return app_settings.mwi_is_token_auth_enabled
 
 
 async def _is_valid_token(token, request):

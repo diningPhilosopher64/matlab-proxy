@@ -8,6 +8,9 @@ import ssl
 import tempfile
 import uuid
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
+from dataclasses import dataclass, field, fields, replace
+from enum import Enum
 from pathlib import Path
 
 from cryptography import x509
@@ -29,6 +32,84 @@ from matlab_proxy.util.mwi.exceptions import (
 )
 
 logger = mwi.logger.get()
+
+
+class SettingsData:
+    """Explicit conversion between settings data classes and configuration mappings."""
+
+    def to_dict(self) -> dict:
+        # Keep runtime objects such as SSL contexts and cookie jars by reference.
+        return {member.name: getattr(self, member.name) for member in fields(self)}
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(**data)
+
+
+class OnlineAuthMethod(str, Enum):
+    MHLM = "mhlm"
+    OAUTH = "oauth"
+
+
+@dataclass
+class OAuthSettings(SettingsData):
+    oauth_client_id: str | None = None
+    online_auth_method: OnlineAuthMethod = OnlineAuthMethod.MHLM
+    oauth_endpoint: str = "https://signin.mathworks.com"
+
+
+@dataclass
+class ServerSettings(SettingsData):
+    create_xvfb_cmd: Callable | None = None
+    base_url: str = ""
+    host_interface: str = "0.0.0.0"
+    app_port: int | str | None = None
+    env_config: dict = field(default_factory=dict)
+    integration_name: str = "MATLAB Desktop"
+    mwapikey: str | None = field(default=None, repr=False)
+    matlab_protocol: str = "https"
+    matlab_config_file: Path | None = None
+    mwi_custom_http_headers: dict = field(default_factory=dict)
+    mwi_logs_root_dir: Path | None = None
+    mwi_log_file: str | None = None
+    mw_context_tags: str = ""
+    mwi_server_url: str | None = None
+    mwi_is_token_auth_enabled: bool = False
+    mwi_auth_status: bool = False
+    mwi_auth_token: str | None = field(default=None, repr=False)
+    mwi_auth_token_hash: str | None = field(default=None, repr=False)
+    mwi_auth_token_name_for_http: str = MWI_AUTH_TOKEN_NAME_FOR_HTTP
+    mwi_auth_token_name_for_env: str = ""
+    mwi_use_existing_license: bool = False
+    ssl_context: ssl.SSLContext | None = field(default=None, repr=False)
+    mwi_idle_timeout: int | None = None
+    cookie_jar: HttpOnlyCookieJar | None = field(default=None, repr=False)
+
+
+@dataclass
+class MatlabSettings(SettingsData):
+    error: UIVisibleFatalError | None = None
+    matlab_version: str | None = None
+    matlab_path: Path | None = None
+    matlab_version_determined_on_startup: bool = False
+    matlab_cmd: list[str] | None = None
+    ws_env: str = ""
+    mwa_api_endpoint: str = ""
+    mhlm_api_endpoint: str = ""
+    mwa_login: str = ""
+    nlm_conn_str: str | None = None
+    has_custom_code_to_execute: bool = False
+    browser_title: str = "MATLAB"
+
+
+@dataclass
+class Settings(ServerSettings, OAuthSettings, MatlabSettings):
+    """Application configuration and mutable runtime settings."""
+
+    warnings: list[str] = field(default_factory=list)
+    is_xvfb_available: bool = False
+    is_windowmanager_available: bool = False
+    matlab_display: str | None = None
 
 
 def get_process_startup_timeout():
@@ -145,7 +226,7 @@ def get_ws_env_settings():
     return ws_env, ws_env_suffix
 
 
-def get_oauth_settings(env_config, ws_env_suffix):
+def get_oauth_settings(env_config, ws_env_suffix) -> OAuthSettings:
     """Compute OAuth device code flow settings.
 
     The device code flow is enabled only when the supplied env_config declares an
@@ -158,37 +239,21 @@ def get_oauth_settings(env_config, ws_env_suffix):
         ws_env_suffix (str): The environment suffix for the MathWorks URLs.
 
     Returns:
-        dict: OAuth related settings, including transient per-session fields.
+        OAuthSettings: OAuth configuration for this integration.
     """
     oauth_client_id = env_config.get("oauth_client_id")
 
-    return {
-        "oauth_client_id": oauth_client_id,
-        # "device_code" enables the OAuth device code flow, "mhlm" falls back to
+    return OAuthSettings(
+        oauth_client_id=oauth_client_id,
+        # "oauth" enables the OAuth device code flow, "mhlm" falls back to
         # the legacy iframe sign-in. The frontend reads this to decide which
         # sign-in UI to render.
-        "online_auth_method": "device_code" if oauth_client_id else "mhlm",
+        online_auth_method=(
+            OnlineAuthMethod.OAUTH if oauth_client_id else OnlineAuthMethod.MHLM
+        ),
         # MathWorks OAuth server base URL (signin host).
-        "oauth_endpoint": f"https://signin{ws_env_suffix}.mathworks.com",
-        # Transient per-session fields populated during an active device flow.
-        "code_verifier": None,
-        "code_challenge": None,
-        "oauth_session_id": None,
-        "dpop_key": None,
-        "device_code": None,
-        "device_code_interval": None,
-        "device_auth_last_check": None,
-        "device_auth_cached_status": None,
-        # User-facing fields echoed back on every pending poll so the frontend can
-        # rehydrate the device flow after a page refresh (the browser loses its
-        # in-memory state, but the flow lives on server-side here).
-        "device_user_code": None,
-        "device_verification_uri": None,
-        "device_verification_uri_complete": None,
-        # Absolute wall-clock deadline (epoch seconds) for the device code, used to
-        # compute the remaining "expires_in" on each poll.
-        "device_code_expiry": None,
-    }
+        oauth_endpoint=f"https://signin{ws_env_suffix}.mathworks.com",
+    )
 
 
 def get_mwi_config_folder(dev=False):
@@ -216,7 +281,7 @@ def get_mwi_logs_root_dir(dev=False):
     return get_mwi_config_folder(dev) / "ports"
 
 
-def get_dev_settings(config):
+def get_dev_settings(config) -> Settings:
     devel_file = Path(__file__).resolve().parent / "./devel.py"
     mwi_config_folder = get_mwi_config_folder(dev=True)
     ws_env, ws_env_suffix = get_ws_env_settings()
@@ -225,56 +290,56 @@ def get_dev_settings(config):
         mwi_auth_token_hash,
     ) = token_auth.generate_mwi_auth_token_and_hash().values()
     env_config = mwi.validators.validate_env_config(config)
-    return {
-        "error": None,
-        "matlab_path": Path(),
-        "matlab_version": "R2020b",
-        "matlab_cmd": [
+    return Settings(
+        error=None,
+        matlab_path=Path(),
+        matlab_version="R2020b",
+        matlab_cmd=[
             "python",
             "-u",
             str(devel_file),
             "matlab",
         ],
-        "create_xvfb_cmd": create_xvfb_cmd,
-        "base_url": os.environ.get(mwi_env.get_env_name_base_url(), ""),
-        "app_port": os.environ.get(mwi_env.get_env_name_app_port(), 8000),
-        "host_interface": "127.0.0.1",
-        "mwapikey": str(uuid.uuid4()),
-        "matlab_protocol": "http",
-        "matlab_display": ":1",
-        "nlm_conn_str": os.environ.get(mwi_env.get_env_name_network_license_manager()),
-        "matlab_config_file": mwi_config_folder / "proxy_app_config.json",
-        "ws_env": ws_env,
-        "mwa_api_endpoint": f"https://login{ws_env_suffix}.mathworks.com/authenticationws/service/v4",
-        "mhlm_api_endpoint": f"https://licensing{ws_env_suffix}.mathworks.com/mls/service/v1/entitlement/list",
-        "mwa_login": f"https://login{ws_env_suffix}.mathworks.com",
-        "mwi_custom_http_headers": mwi.custom_http_headers.get(),
-        "env_config": env_config,
-        **get_oauth_settings(env_config, ws_env_suffix),
-        "integration_name": "MATLAB Desktop",
-        "ssl_context": None,
-        "mwi_logs_root_dir": get_mwi_logs_root_dir(dev=True),
-        "mw_context_tags": get_mw_context_tags(matlab_proxy.get_default_config_name()),
-        "mwi_server_url": None,
-        "mwi_is_token_auth_enabled": mwi_auth_token is not None,
-        "mwi_auth_status": False,
-        "mwi_auth_token": mwi_auth_token,
-        "mwi_auth_token_hash": mwi_auth_token_hash,
-        "mwi_auth_token_name_for_http": MWI_AUTH_TOKEN_NAME_FOR_HTTP,
-        "mwi_auth_token_name_for_env": mwi_env.get_env_name_mwi_auth_token().lower(),
-        "mwi_use_existing_license": mwi.validators.validate_use_existing_licensing(
+        create_xvfb_cmd=create_xvfb_cmd,
+        base_url=os.environ.get(mwi_env.get_env_name_base_url(), ""),
+        app_port=os.environ.get(mwi_env.get_env_name_app_port(), 8000),
+        host_interface="127.0.0.1",
+        mwapikey=str(uuid.uuid4()),
+        matlab_protocol="http",
+        matlab_display=":1",
+        nlm_conn_str=os.environ.get(mwi_env.get_env_name_network_license_manager()),
+        matlab_config_file=mwi_config_folder / "proxy_app_config.json",
+        ws_env=ws_env,
+        mwa_api_endpoint=f"https://login{ws_env_suffix}.mathworks.com/authenticationws/service/v4",
+        mhlm_api_endpoint=f"https://licensing{ws_env_suffix}.mathworks.com/mls/service/v1/entitlement/list",
+        mwa_login=f"https://login{ws_env_suffix}.mathworks.com",
+        mwi_custom_http_headers=mwi.custom_http_headers.get(),
+        env_config=env_config,
+        **get_oauth_settings(env_config, ws_env_suffix).to_dict(),
+        integration_name="MATLAB Desktop",
+        ssl_context=None,
+        mwi_logs_root_dir=get_mwi_logs_root_dir(dev=True),
+        mw_context_tags=get_mw_context_tags(matlab_proxy.get_default_config_name()),
+        mwi_server_url=None,
+        mwi_is_token_auth_enabled=mwi_auth_token is not None,
+        mwi_auth_status=False,
+        mwi_auth_token=mwi_auth_token,
+        mwi_auth_token_hash=mwi_auth_token_hash,
+        mwi_auth_token_name_for_http=MWI_AUTH_TOKEN_NAME_FOR_HTTP,
+        mwi_auth_token_name_for_env=mwi_env.get_env_name_mwi_auth_token().lower(),
+        mwi_use_existing_license=mwi.validators.validate_use_existing_licensing(
             os.getenv(mwi_env.get_env_name_mwi_use_existing_license(), "")
         ),
-        "warnings": [],
-        "is_xvfb_available": False,
-        "is_windowmanager_available": False,
-        "mwi_idle_timeout": None,
-        "cookie_jar": _get_cookie_jar(),
-        "browser_title": session_name.get_browser_title("R2020b"),
-    }
+        warnings=[],
+        is_xvfb_available=False,
+        is_windowmanager_available=False,
+        mwi_idle_timeout=None,
+        cookie_jar=_get_cookie_jar(),
+        browser_title=session_name.get_browser_title("R2020b"),
+    )
 
 
-def get(config_name=matlab_proxy.get_default_config_name(), dev=False):
+def get(config_name=matlab_proxy.get_default_config_name(), dev=False) -> Settings:
     """Returns the settings specific to the environment in which the server is running in
     If the environment variable 'TEST' is set  to true, will make some changes to the dev settings.
 
@@ -283,7 +348,7 @@ def get(config_name=matlab_proxy.get_default_config_name(), dev=False):
         dev (bool, optional): development environment. Defaults to False.
 
     Returns:
-        Dict: Containing data on how to start MATLAB among other information.
+        Settings: Typed configuration for the server and MATLAB.
 
     Raises:
         Initialization of settings is not exception safe.
@@ -301,49 +366,49 @@ def get(config_name=matlab_proxy.get_default_config_name(), dev=False):
         if mwi_env.is_testing_mode_enabled():
             # Set ready_delay value to 0 for faster fake MATLAB startup.
             ready_delay = ["--ready-delay", "0"]
-            matlab_cmd = settings["matlab_cmd"]
+            matlab_cmd = settings.matlab_cmd
             matlab_cmd[4:4] = ready_delay
-            settings["matlab_cmd"] = matlab_cmd
+            settings.matlab_cmd = matlab_cmd
 
-            # Randomly picks an available port and updates the value of settings['app_port'] .
+            # Randomly picks an available port and updates the value of settings.app_port .
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.bind(("", 0))
-            settings["app_port"] = s.getsockname()[1]
+            settings.app_port = s.getsockname()[1]
             s.close()
 
             # Set NLM Connection string. Server will start using this connection string for licensing
-            settings["nlm_conn_str"] = "123@nlm"
+            settings.nlm_conn_str = "123@nlm"
 
     else:
-        settings = {"error": None, "warnings": []}
-
-        # Initializing server settings separately allows us to return
-        # a minimal set of settings required to launch the server even if
-        # there is an exception thrown when creating the matlab specific settings.
-        settings.update(get_server_settings(config_name))
-
-        settings["is_xvfb_available"] = True if shutil.which("Xvfb") else False
-        settings["is_windowmanager_available"] = (
-            True if shutil.which("fluxbox") else False
+        # Initialize server configuration before MATLAB settings, so a MATLAB
+        # installation error can still be presented by the running web server.
+        server = get_server_settings(config_name)
+        _, ws_env_suffix = get_ws_env_settings()
+        settings = Settings(
+            **server.to_dict(),
+            **get_oauth_settings(server.env_config, ws_env_suffix).to_dict(),
         )
+
+        settings.is_xvfb_available = True if shutil.which("Xvfb") else False
+        settings.is_windowmanager_available = True if shutil.which("fluxbox") else False
 
         # Warn user if xvfb is not available on system path.
         if system.is_linux():
-            if not settings["is_xvfb_available"]:
+            if not settings.is_xvfb_available:
                 warning = "  Unable to find Xvfb on the system PATH. Xvfb enables graphical abilities like plots and figures in the MATLAB desktop.\nConsider adding Xvfb to the system PATH and restart matlab-proxy.\nFor details, see https://github.com/mathworks/matlab-proxy#requirements."
                 logger.warning(warning)
-                settings["warnings"].append(warning)
+                settings.warnings.append(warning)
 
-            if not settings["is_windowmanager_available"]:
+            if not settings.is_windowmanager_available:
                 warning = " Unable to find fluxbox on the system PATH. To use Simulink Online, add Fluxbox to the system PATH and restart matlab-proxy. For details, see https://github.com/mathworks/matlab-proxy#requirements."
                 logger.warning(warning)
 
-        settings.update(get_matlab_settings())
+        settings = replace(settings, **get_matlab_settings().to_dict())
 
     return settings
 
 
-def get_server_settings(config_name):
+def get_server_settings(config_name) -> ServerSettings:
     """Get the settings required to launch the MATLAB-PROXY web server.
 
     Args:
@@ -364,7 +429,6 @@ def get_server_settings(config_name):
     mwi_log_file = os.getenv(mwi_env.get_env_name_log_file(), None)
 
     env_config = mwi.validators.validate_env_config(config_name)
-    _, ws_env_suffix = get_ws_env_settings()
     short_desc = env_config["extension_name_short_description"]
     integration_name = (
         short_desc
@@ -373,54 +437,53 @@ def get_server_settings(config_name):
     )
 
     cookie_jar = _get_cookie_jar()
-    return {
-        "create_xvfb_cmd": create_xvfb_cmd,
-        "base_url": mwi.validators.validate_base_url(
+    return ServerSettings(
+        create_xvfb_cmd=create_xvfb_cmd,
+        base_url=mwi.validators.validate_base_url(
             os.getenv(mwi_env.get_env_name_base_url(), "")
         ),
         # Set host interface to 0.0.0.0 to bind on all interfaces
-        "host_interface": "0.0.0.0",
+        host_interface="0.0.0.0",
         # not_exception_safe, can_terminate_process by throwing FatalError
-        "app_port": mwi.validators.validate_app_port_is_free(
+        app_port=mwi.validators.validate_app_port_is_free(
             os.getenv(mwi_env.get_env_name_app_port())
         ),
-        "env_config": env_config,
-        **get_oauth_settings(env_config, ws_env_suffix),
-        "integration_name": integration_name,
-        "mwapikey": str(uuid.uuid4()),
-        "matlab_protocol": "https",
-        "matlab_config_file": mwi_config_folder / "proxy_app_config.json",
-        "mwi_custom_http_headers": mwi.custom_http_headers.get(),
+        env_config=env_config,
+        integration_name=integration_name,
+        mwapikey=str(uuid.uuid4()),
+        matlab_protocol="https",
+        matlab_config_file=mwi_config_folder / "proxy_app_config.json",
+        mwi_custom_http_headers=mwi.custom_http_headers.get(),
         # This directory will be used to store connector.securePort(matlab_ready_file) and its corresponding files. This will be
         # a central place to store logs of all the running instances of MATLAB launched by matlab-proxy
-        "mwi_logs_root_dir": get_mwi_logs_root_dir(),
-        "mwi_log_file": mwi_log_file,
-        "mw_context_tags": get_mw_context_tags(config_name),
+        mwi_logs_root_dir=get_mwi_logs_root_dir(),
+        mwi_log_file=mwi_log_file,
+        mw_context_tags=get_mw_context_tags(config_name),
         # The url where the matlab-proxy server is accessible at
-        "mwi_server_url": None,
-        "mwi_is_token_auth_enabled": mwi_auth_token is not None,
-        "mwi_auth_status": False,
-        "mwi_auth_token": mwi_auth_token,
-        "mwi_auth_token_hash": mwi_auth_token_hash,
-        "mwi_auth_token_name_for_http": MWI_AUTH_TOKEN_NAME_FOR_HTTP,
-        "mwi_auth_token_name_for_env": mwi_env.get_env_name_mwi_auth_token().lower(),
-        "mwi_use_existing_license": mwi.validators.validate_use_existing_licensing(
+        mwi_server_url=None,
+        mwi_is_token_auth_enabled=mwi_auth_token is not None,
+        mwi_auth_status=False,
+        mwi_auth_token=mwi_auth_token,
+        mwi_auth_token_hash=mwi_auth_token_hash,
+        mwi_auth_token_name_for_http=MWI_AUTH_TOKEN_NAME_FOR_HTTP,
+        mwi_auth_token_name_for_env=mwi_env.get_env_name_mwi_auth_token().lower(),
+        mwi_use_existing_license=mwi.validators.validate_use_existing_licensing(
             os.getenv(mwi_env.get_env_name_mwi_use_existing_license(), "")
         ),
-        "ssl_context": _validate_ssl_files_and_get_ssl_context(mwi_config_folder),
+        ssl_context=_validate_ssl_files_and_get_ssl_context(mwi_config_folder),
         # validate_idle_timeout converts the timeout from minutes to seconds
-        "mwi_idle_timeout": mwi.validators.validate_idle_timeout(
+        mwi_idle_timeout=mwi.validators.validate_idle_timeout(
             os.getenv(mwi_env.get_env_name_shutdown_on_idle_timeout())
         ),
-        "cookie_jar": cookie_jar,
-    }
+        cookie_jar=cookie_jar,
+    )
 
 
-def get_matlab_settings():
+def get_matlab_settings() -> MatlabSettings:
     """Returns the settings required to start MATLAB.
 
     Returns:
-        Dict: Containing data on how to start MATLAB among other information.
+        MatlabSettings: Typed configuration for launching MATLAB.
     Raises:
     This function is not exception safe, and all exceptions will result in the termination of the app.
     Unless they are of type UIVisibleFatalError
@@ -445,18 +508,18 @@ def get_matlab_settings():
     matlab_version_determined_on_startup = bool(matlab_version)
     matlab_cmd = _get_matlab_cmd(matlab_executable_path, code_to_execute)
 
-    return {
-        "error": err,
-        "matlab_version": matlab_version,
-        "matlab_path": matlab_root_path,
-        "matlab_version_determined_on_startup": matlab_version_determined_on_startup,
-        "matlab_cmd": matlab_cmd,
-        "ws_env": ws_env,
+    return MatlabSettings(
+        error=err,
+        matlab_version=matlab_version,
+        matlab_path=matlab_root_path,
+        matlab_version_determined_on_startup=matlab_version_determined_on_startup,
+        matlab_cmd=matlab_cmd,
+        ws_env=ws_env,
         **mw_licensing_urls,
-        "nlm_conn_str": nlm_conn_str,
-        "has_custom_code_to_execute": has_custom_code_to_execute,
-        "browser_title": session_name.get_browser_title(matlab_version),
-    }
+        nlm_conn_str=nlm_conn_str,
+        has_custom_code_to_execute=has_custom_code_to_execute,
+        browser_title=session_name.get_browser_title(matlab_version),
+    )
 
 
 def get_mw_context_tags(extension_name):

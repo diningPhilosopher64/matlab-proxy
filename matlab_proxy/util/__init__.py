@@ -94,15 +94,15 @@ def prepare_site(app, runner):
     """
     from aiohttp import web
 
-    port = app["settings"]["app_port"]
+    port = app["settings"].app_port
     # SSL_CONFIG validated and inserted in settings.py
-    ssl_context = app["settings"]["ssl_context"]
+    ssl_context = app["settings"].ssl_context
 
     if port:
         logger.debug(f"Using {mwi_env.get_env_name_app_port()} to launch the server")
         site = web.TCPSite(
             runner,
-            host=app["settings"]["host_interface"],
+            host=app["settings"].host_interface,
             port=port,
             ssl_context=ssl_context,
         )
@@ -117,7 +117,7 @@ def prepare_site(app, runner):
                 logger.debug(f"Trying to launch the site on port {p}")
                 site = web.TCPSite(
                     runner,
-                    host=app["settings"]["host_interface"],
+                    host=app["settings"].host_interface,
                     port=p,
                     ssl_context=ssl_context,
                 )
@@ -234,11 +234,11 @@ def get_access_url(app):
     Returns:
         str: complete url at which the server will be accessible.
     """
-    base_url = app["settings"]["base_url"]
-    port = app["settings"]["app_port"]
+    base_url = app["settings"].base_url
+    port = app["settings"].app_port
 
-    ssl_context = app["settings"]["ssl_context"]
-    host_interface = app["settings"]["host_interface"]
+    ssl_context = app["settings"].ssl_context
+    host_interface = app["settings"].host_interface
 
     access_protocol = "https" if ssl_context else "http"
 

@@ -239,15 +239,15 @@ def test_settings_get_matlab_cmd_for_different_matlab_versions(
 
     # Assert matlab_version is in path to matlab_cmd
     sett = settings.get(dev=False)
-    assert matlab_version in str(sett["matlab_cmd"][0])
+    assert matlab_version in str(sett.matlab_cmd[0])
 
 
 def test_get_dev_true():
     """Test to check settings returned by settings.get() method in dev mode."""
     dev_mode_settings = settings.get(dev=True)
 
-    assert dev_mode_settings["matlab_cmd"][0] != "matlab"
-    assert dev_mode_settings["matlab_protocol"] == "http"
+    assert dev_mode_settings.matlab_cmd[0] != "matlab"
+    assert dev_mode_settings.matlab_protocol == "http"
 
 
 @pytest.fixture(name="patch_env_variables")
@@ -274,9 +274,9 @@ def test_get_dev_false(patch_env_variables, mock_shutil_which, fake_matlab_root_
         patch_env_variables : Pytest fixture which monkeypatches some env variables.
     """
     _settings = settings.get(dev=False)
-    assert "matlab" in str(_settings["matlab_cmd"][0])
-    assert os.path.isdir(_settings["matlab_path"])
-    assert _settings["matlab_protocol"] == "https"
+    assert "matlab" in str(_settings.matlab_cmd[0])
+    assert os.path.isdir(_settings.matlab_path)
+    assert _settings.matlab_protocol == "https"
 
 
 def test_get_mw_context_tags(monkeypatch):
@@ -561,7 +561,7 @@ def test_get_matlab_settings_no_matlab_on_path(mocker):
     matlab_settings = settings.get_matlab_settings()
 
     # Assert
-    assert isinstance(matlab_settings["error"], MatlabInstallError)
+    assert isinstance(matlab_settings.error, MatlabInstallError)
 
 
 def test_get_matlab_settings_matlab_softlink(mocker, tmp_path):
@@ -578,10 +578,10 @@ def test_get_matlab_settings_matlab_softlink(mocker, tmp_path):
     matlab_settings = settings.get_matlab_settings()
 
     # Assert
-    assert str(matlab_exec_path) in str(matlab_settings["matlab_cmd"][0])
-    assert matlab_settings["matlab_path"] == matlab_root_path
+    assert str(matlab_exec_path) in str(matlab_settings.matlab_cmd[0])
+    assert matlab_settings.matlab_path == matlab_root_path
     assert (
-        matlab_settings["matlab_version"] is None
+        matlab_settings.matlab_version is None
     )  # There's no VersionInfo.xml file in the mock setup
 
 
@@ -594,13 +594,13 @@ def test_get_matlab_settings_matlab_wrapper(mocker, tmp_path):
     matlab_settings = settings.get_matlab_settings()
 
     # Assert
-    assert str(matlab_exec_path) in str(matlab_settings["matlab_cmd"][0])
+    assert str(matlab_exec_path) in str(matlab_settings.matlab_cmd[0])
     assert (
-        matlab_settings["matlab_path"] is None
+        matlab_settings.matlab_path is None
     )  # Matlab root could not be determined because wrapper script is being used
-    assert matlab_settings["matlab_version"] is None
+    assert matlab_settings.matlab_version is None
     assert (
-        matlab_settings["error"] is None
+        matlab_settings.error is None
     )  # Error has to be None when matlab executable is on PATH but root path could not be determined
 
 
@@ -622,11 +622,11 @@ def test_get_matlab_settings_valid_custom_matlab_root(mocker, monkeypatch, tmp_p
     matlab_settings = settings.get_matlab_settings()
 
     # Assert
-    assert str(matlab_exec_path) in str(matlab_settings["matlab_cmd"][0])
-    assert matlab_settings["matlab_path"] == matlab_root_path
-    assert matlab_settings["matlab_version"] == matlab_version
-    assert matlab_settings["error"] is None
-    assert matlab_settings["browser_title"] == f"MATLAB {matlab_version}"
+    assert str(matlab_exec_path) in str(matlab_settings.matlab_cmd[0])
+    assert matlab_settings.matlab_path == matlab_root_path
+    assert matlab_settings.matlab_version == matlab_version
+    assert matlab_settings.error is None
+    assert matlab_settings.browser_title == f"MATLAB {matlab_version}"
 
 
 def test_get_matlab_settings_valid_custom_matlab_root_and_session_name(
@@ -650,11 +650,11 @@ def test_get_matlab_settings_valid_custom_matlab_root_and_session_name(
     matlab_settings = settings.get_matlab_settings()
 
     # Assert
-    assert str(matlab_exec_path) in str(matlab_settings["matlab_cmd"][0])
-    assert matlab_settings["matlab_path"] == matlab_root_path
-    assert matlab_settings["matlab_version"] == matlab_version
-    assert matlab_settings["error"] is None
-    assert matlab_settings["browser_title"] == f"Test Session - MATLAB {matlab_version}"
+    assert str(matlab_exec_path) in str(matlab_settings.matlab_cmd[0])
+    assert matlab_settings.matlab_path == matlab_root_path
+    assert matlab_settings.matlab_version == matlab_version
+    assert matlab_settings.error is None
+    assert matlab_settings.browser_title == f"Test Session - MATLAB {matlab_version}"
 
 
 def test_get_matlab_settings_invalid_custom_matlab_root(mocker, monkeypatch, tmp_path):
@@ -670,13 +670,12 @@ def test_get_matlab_settings_invalid_custom_matlab_root(mocker, monkeypatch, tmp
     # VersionInfo.xml file must to be there
     # matlab executable inside the bin folder must be there
     # If not, MATLAB related settings should be None and custom MATLAB root error should be present
-    assert matlab_settings["matlab_cmd"] is None
-    assert matlab_settings["matlab_path"] is None
-    assert matlab_settings["matlab_version"] is None
+    assert matlab_settings.matlab_cmd is None
+    assert matlab_settings.matlab_path is None
+    assert matlab_settings.matlab_version is None
     assert (
-        isinstance(matlab_settings["error"], MatlabInstallError)
-        and mwi_env.get_env_name_custom_matlab_root()
-        in matlab_settings["error"].message
+        isinstance(matlab_settings.error, MatlabInstallError)
+        and mwi_env.get_env_name_custom_matlab_root() in matlab_settings.error.message
     )
 
 
@@ -684,16 +683,12 @@ def test_get_cookie_jar(monkeypatch):
     """Test to check if Cookie Jar is returned as a part of server settings"""
     monkeypatch.setenv(mwi_env.Experimental.get_env_name_use_cookie_cache(), "false")
     assert (
-        settings.get_server_settings(matlab_proxy.get_default_config_name())[
-            "cookie_jar"
-        ]
+        settings.get_server_settings(matlab_proxy.get_default_config_name()).cookie_jar
         is None
     )
 
     monkeypatch.setenv(mwi_env.Experimental.get_env_name_use_cookie_cache(), "true")
     assert isinstance(
-        settings.get_server_settings(matlab_proxy.get_default_config_name())[
-            "cookie_jar"
-        ],
+        settings.get_server_settings(matlab_proxy.get_default_config_name()).cookie_jar,
         HttpOnlyCookieJar,
     )

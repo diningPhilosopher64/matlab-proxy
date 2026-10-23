@@ -1,6 +1,7 @@
 # Copyright 2024-2025 The MathWorks, Inc.
 import pytest
 
+from matlab_proxy.settings import Settings
 from matlab_proxy.util.mwi.download import (
     _get_download_payload_path,
     get_download_url,
@@ -13,7 +14,7 @@ from matlab_proxy.util.mwi.download import (
 def mock_request_fixture(mocker):
     mock_req = mocker.MagicMock()
     mock_req.app = {
-        "settings": {"base_url": ""},
+        "settings": Settings(base_url=""),
         "state": mocker.MagicMock(),
     }
     mock_req.rel_url = mocker.MagicMock()
@@ -37,7 +38,7 @@ def mock_request_fixture(mocker):
     ],
 )
 def test_is_download_request(mock_request_fixture, test_base_url, path, expected):
-    mock_request_fixture.app["settings"]["base_url"] = test_base_url
+    mock_request_fixture.app["settings"].base_url = test_base_url
     mock_request_fixture.rel_url.path = path
     assert is_download_request(mock_request_fixture) == expected
 
@@ -83,7 +84,7 @@ def test_is_download_request(mock_request_fixture, test_base_url, path, expected
 def test_get_download_payload_path(
     mock_request_fixture, mocker, is_windows, test_base_url, path, expected
 ):
-    mock_request_fixture.app["settings"]["base_url"] = test_base_url
+    mock_request_fixture.app["settings"].base_url = test_base_url
     mock_request_fixture.rel_url.path = path
     assert _get_download_payload_path(mock_request_fixture) == expected
 
@@ -92,7 +93,7 @@ def test_get_download_payload_path_invalid_request(mock_request_fixture):
     test_base_url = "/base"
     path = "/download/something"
 
-    mock_request_fixture.app["settings"]["base_url"] = test_base_url
+    mock_request_fixture.app["settings"].base_url = test_base_url
     mock_request_fixture.rel_url.path = path
 
     assert _get_download_payload_path(mock_request_fixture) is None
@@ -121,10 +122,10 @@ async def test_get_download_url(
     test_base_url = "/"
     path = "/download/some/path/to/file.txt"
 
-    mock_request_fixture.app["state"].settings = {
-        "mwi_server_url": "http://mwi-server.com"
-    }
-    mock_request_fixture.app["settings"]["base_url"] = test_base_url
+    mock_request_fixture.app["state"].settings = Settings(
+        mwi_server_url="http://mwi-server.com"
+    )
+    mock_request_fixture.app["settings"].base_url = test_base_url
     mock_request_fixture.rel_url.path = path
 
     mocker.patch(

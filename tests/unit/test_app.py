@@ -15,8 +15,12 @@ from aiohttp.web import WebSocketResponse
 from multidict import CIMultiDict
 
 import tests.unit.test_constants as test_constants
-from matlab_proxy import app, util
+from matlab_proxy import app, responses, util
 from matlab_proxy.app import matlab_view
+from matlab_proxy.licensing import OAuthLicense, license_from_dict
+from matlab_proxy.licensing import routes as licensing_routes
+from matlab_proxy.licensing.oauth import DeviceAuthStatus, DeviceFlowState
+from matlab_proxy.settings import Settings
 from matlab_proxy.util import system as mwi_sys
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi.exceptions import EntitlementError, MatlabInstallError
@@ -80,10 +84,10 @@ async def test_create_app():
     # Verify router is configured with some routes
     assert test_server.router._resources is not None
 
-    # Verify app server has a shutdown task
-    # By default there is 1 for clean up task
+    # Verify the shutdown callback and cleanup callbacks for aiohttp's cleanup
+    # context and device-flow cleanup.
     assert len(test_server.on_shutdown) == 1
-    assert len(test_server.on_cleanup) == 1
+    assert len(test_server.on_cleanup) == 2
     await test_server["state"].stop_server_tasks()
 
 
@@ -186,9 +190,9 @@ def licensing_info_fixture(request):
 
 
 def test_marshal_licensing_info(licensing_data):
-    """Test app.marshal_licensing_info method works correctly
+    """Test responses.marshal_licensing_info method works correctly
 
-    This test checks if app.marshal_licensing_info returns correct licensing data.
+    This test checks if responses.marshal_licensing_info returns correct licensing data.
     Test checks for 3 cases:
         1) No Licensing Provided
         2) MHLM type Licensing
@@ -198,10 +202,15 @@ def test_marshal_licensing_info(licensing_data):
         licensing_data (Array): An array containing actual and expected licensing data to assert.
     """
 
-    actual_licensing_info = licensing_data["input"]
+    actual_licensing_info = (
+        license_from_dict(licensing_data["input"]) if licensing_data["input"] else None
+    )
     expected_licensing_info = licensing_data["expected"]
 
-    assert app.marshal_licensing_info(actual_licensing_info) == expected_licensing_info
+    assert (
+        responses.marshal_licensing_info(actual_licensing_info)
+        == expected_licensing_info
+    )
 
 
 @pytest.mark.parametrize(
@@ -229,7 +238,7 @@ def test_marshal_error(actual_error, expected_error):
         actual_error (Exception): An instance of Exception class
         expected_error (Dict): A python Dict containing information on the type of Exception
     """
-    assert app.marshal_error(actual_error) == expected_error
+    assert responses.marshal_error(actual_error) == expected_error
 
 
 async def async_configure_and_start(app_instance):
@@ -263,16 +272,16 @@ async def async_configure_and_start(app_instance):
     site = app.util.prepare_site(app_instance, runner)
 
     # This would be required when MWI_APP_PORT env variable is not set and the site starts on a random port.
-    app_instance["settings"]["app_port"] = site._port
+    app_instance["settings"].app_port = site._port
 
     # Update the site origin in settings.
     # The origin will be used for communicating with the Embedded connector.
-    app_instance["settings"]["mwi_server_url"] = app.util.get_access_url(app_instance)
+    app_instance["settings"].mwi_server_url = app.util.get_access_url(app_instance)
     await site.start()
 
     app.logger.debug("Starting MATLAB proxy app")
     app.logger.debug(
-        f" with base_url: {app_instance['settings']['base_url']} and app_port:{app_instance['settings']['app_port']}."
+        f" with base_url: {app_instance['settings'].base_url} and app_port:{app_instance['settings'].app_port}."
     )
 
     app_instance["state"].create_server_info_file()
@@ -316,11 +325,9 @@ def mock_request(mocker):
     req = mocker.MagicMock()
     req.app = {
         "state": mocker.MagicMock(matlab_port=8000),
-        "settings": {
-            "matlab_protocol": "http",
-            "mwapikey": "test-key",
-            "cookie_jar": None,
-        },
+        "settings": Settings(
+            matlab_protocol="http", mwapikey="test-key", cookie_jar=None
+        ),
     }
     req.headers = CIMultiDict()
     req.cookies = {}
@@ -419,7 +426,7 @@ async def test_get_env_config(test_server):
         "idleTimeoutDuration": 100,
         "browserTitle": "MATLAB R2020b",
         "oauth_client_id": "mw-cpi-matlab-proxy",
-        "online_auth_method": "device_code",
+        "online_auth_method": "oauth",
     }
     resp = await test_server.get("/get_env_config")
     assert resp.status == HTTPStatus.OK
@@ -809,17 +816,17 @@ async def test_set_licensing_info_put_mhlm(
     """
 
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_expand_token",
+        "matlab_proxy.licensing.mhlm.mw.fetch_expand_token",
         return_value=set_licensing_info_mock_expand_token,
     )
 
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_access_token",
+        "matlab_proxy.licensing.mhlm.mw.fetch_access_token",
         return_value=set_licensing_info_mock_access_token,
     )
 
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_entitlements",
+        "matlab_proxy.licensing.mhlm.mw.fetch_entitlements",
         return_value=set_licensing_info_mock_fetch_multiple_entitlements,
     )
 
@@ -827,7 +834,7 @@ async def test_set_licensing_info_put_mhlm(
     transient_device_state = {
         "device_code": "secret-device-code",
         "device_code_interval": 5,
-        "device_auth_cached_status": "PENDING",
+        "device_auth_cached_status": DeviceAuthStatus.PENDING,
         "device_auth_last_check": time.time(),
         "code_verifier": "code-verifier",
         "code_challenge": "code-challenge",
@@ -838,7 +845,7 @@ async def test_set_licensing_info_put_mhlm(
         "device_verification_uri_complete": "https://www.mathworks.com/mwlogin?code=ABCD-EFGH",
         "device_code_expiry": time.time() + 600,
     }
-    state.settings.update(transient_device_state)
+    state.device_flow = DeviceFlowState(**transient_device_state)
 
     data = {
         "type": "mhlm",
@@ -850,7 +857,9 @@ async def test_set_licensing_info_put_mhlm(
     }
     resp = await test_server.put("/set_licensing_info", data=json.dumps(data))
     assert resp.status == HTTPStatus.OK
-    assert all(state.settings[key] is None for key in transient_device_state)
+    assert all(
+        getattr(state.device_flow, key) is None for key in transient_device_state
+    )
 
 
 async def test_set_licensing_info_put_existing_license(test_server):
@@ -1014,17 +1023,17 @@ async def set_licensing_info_fixture(
 ):
     """Fixture to setup correct licensing state on the server"""
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_expand_token",
+        "matlab_proxy.licensing.mhlm.mw.fetch_expand_token",
         return_value=set_licensing_info_mock_expand_token,
     )
 
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_access_token",
+        "matlab_proxy.licensing.mhlm.mw.fetch_access_token",
         return_value=set_licensing_info_mock_access_token,
     )
 
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_entitlements",
+        "matlab_proxy.licensing.mhlm.mw.fetch_entitlements",
         return_value=set_licensing_info_mock_fetch_multiple_entitlements,
     )
 
@@ -1043,7 +1052,7 @@ async def set_licensing_info_fixture(
 
     # Set matlab_version to None to check if the version is updated
     # after sending a request t o /set_licensing_info endpoint
-    test_server.server.app["settings"]["matlab_version"] = None
+    test_server.server.app["settings"].matlab_version = None
 
     # Pre-req: stop the matlab that got started during test server startup
     resp = await test_server.delete("/stop_matlab")
@@ -1053,7 +1062,7 @@ async def set_licensing_info_fixture(
     assert resp.status == HTTPStatus.OK
 
     # Assert whether the matlab_version was updated from None when licensing type is mhlm
-    assert test_server.server.app["settings"]["matlab_version"] == "R2023a"
+    assert test_server.server.app["settings"].matlab_version == "R2023a"
 
     return test_server
 
@@ -1066,17 +1075,17 @@ async def test_set_licensing_mhlm_zero_entitlement(
 ):
     # Patching the functions where it is used (and not where it is defined)
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_expand_token",
+        "matlab_proxy.licensing.mhlm.mw.fetch_expand_token",
         return_value=set_licensing_info_mock_expand_token,
     )
 
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_access_token",
+        "matlab_proxy.licensing.mhlm.mw.fetch_access_token",
         return_value=set_licensing_info_mock_access_token,
     )
 
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_entitlements",
+        "matlab_proxy.licensing.mhlm.mw.fetch_entitlements",
         side_effect=EntitlementError(
             "Your MathWorks account is not linked to a valid license for MATLAB"
         ),
@@ -1109,17 +1118,17 @@ async def test_set_licensing_mhlm_single_entitlement(
     set_licensing_info_mock_fetch_single_entitlement,
 ):
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_expand_token",
+        "matlab_proxy.licensing.mhlm.mw.fetch_expand_token",
         return_value=set_licensing_info_mock_expand_token,
     )
 
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_access_token",
+        "matlab_proxy.licensing.mhlm.mw.fetch_access_token",
         return_value=set_licensing_info_mock_access_token,
     )
 
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_entitlements",
+        "matlab_proxy.licensing.mhlm.mw.fetch_entitlements",
         return_value=set_licensing_info_mock_fetch_single_entitlement,
     )
 
@@ -1159,17 +1168,17 @@ async def test_set_licensing_mhlm_multi_entitlements(
     set_licensing_info_mock_fetch_multiple_entitlements,
 ):
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_expand_token",
+        "matlab_proxy.licensing.mhlm.mw.fetch_expand_token",
         return_value=set_licensing_info_mock_expand_token,
     )
 
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_access_token",
+        "matlab_proxy.licensing.mhlm.mw.fetch_access_token",
         return_value=set_licensing_info_mock_access_token,
     )
 
     mocker.patch(
-        "matlab_proxy.app_state.mw.fetch_entitlements",
+        "matlab_proxy.licensing.mhlm.mw.fetch_entitlements",
         return_value=set_licensing_info_mock_fetch_multiple_entitlements,
     )
 
@@ -1324,7 +1333,7 @@ async def test_cookie_jar_http_request(proxy_payload, test_server):
     await wait_for_matlab_to_be_up(test_server, test_constants.ONE_SECOND_DELAY)
 
     # Manually update cookie in cookie jar
-    test_server.app["settings"]["cookie_jar"]._cookie_jar[
+    test_server.app["settings"].cookie_jar._cookie_jar[
         "custom_cookie"
     ] = actual_custom_cookie
 
@@ -1332,7 +1341,7 @@ async def test_cookie_jar_http_request(proxy_payload, test_server):
     async with await test_server.get(
         "/http_get_request.html", data=json.dumps(proxy_payload)
     ) as _:
-        expected_custom_cookie = test_server.app["settings"]["cookie_jar"]._cookie_jar[
+        expected_custom_cookie = test_server.app["settings"].cookie_jar._cookie_jar[
             "custom_cookie"
         ]
 
@@ -1362,7 +1371,7 @@ async def test_cookie_jar_web_socket(proxy_payload, test_server):
     ).strftime("%a, %d-%b-%Y %H:%M:%S GMT")
 
     # Update cookie in cookie jar
-    test_server.app["settings"]["cookie_jar"]._cookie_jar[
+    test_server.app["settings"].cookie_jar._cookie_jar[
         "custom_cookie"
     ] = actual_custom_cookie
 
@@ -1380,7 +1389,7 @@ async def test_cookie_jar_web_socket(proxy_payload, test_server):
             "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",  # Optional unique key for the websocket handshake
         },
     ) as _:
-        expected_custom_cookie = test_server.app["settings"]["cookie_jar"]._cookie_jar[
+        expected_custom_cookie = test_server.app["settings"].cookie_jar._cookie_jar[
             "custom_cookie"
         ]
         # Assert
@@ -1391,22 +1400,22 @@ async def test_cookie_jar_web_socket(proxy_payload, test_server):
 def oauth_device_request(mocker):
     """A mock request wired for the device_authorize handler.
 
-    Provides a settings dict with the OAuth fields the handler reads, plus a
+    Provides typed settings with the OAuth fields the handler reads, plus a
     JSON body accessor whose payload each test can override.
     """
     req = mocker.MagicMock()
     req.app = {
         "state": mocker.MagicMock(),
-        "settings": {
-            "oauth_endpoint": "https://signin.mathworks.com",
-            "oauth_client_id": "mw-cpi-matlab-proxy",
-            "matlab_version": "R2024b",
-            "matlab_version_determined_on_startup": True,
-        },
+        "settings": Settings(
+            oauth_endpoint="https://signin.mathworks.com",
+            oauth_client_id="mw-cpi-matlab-proxy",
+            matlab_version="R2024b",
+            matlab_version_determined_on_startup=True,
+        ),
     }
-    # The handler stores transient state on state.settings; point it at the same
-    # dict so assertions can read what the handler wrote.
+    # Share configuration with the request; sign-in state belongs to AppState.
     req.app["state"].settings = req.app["settings"]
+    req.app["state"].device_flow = DeviceFlowState()
 
     async def _json():
         return req._json_body
@@ -1418,9 +1427,9 @@ def oauth_device_request(mocker):
 
 @pytest.fixture
 def mock_mw_device_authorize(mocker):
-    """Patch mw.device_authorize (as imported into app.py) with a canned response."""
+    """Patch mw.device_authorize (as imported into the licensing routes) with a canned response."""
     return mocker.patch(
-        "matlab_proxy.app.mw.device_authorize",
+        "matlab_proxy.licensing.routes.mw.device_authorize",
         return_value={
             "device_code": "secret-device-code",
             "user_code": "ABCD-EFGH",
@@ -1438,15 +1447,15 @@ async def test_device_authorize_records_posted_matlab_version(
     """When the version was NOT determined on startup, device_authorize must record
     the matlabVersion sent by the frontend (mirroring the MHLM set_licensing path)."""
     settings = oauth_device_request.app["settings"]
-    settings["matlab_version_determined_on_startup"] = False
-    settings["matlab_version"] = None
+    settings.matlab_version_determined_on_startup = False
+    settings.matlab_version = None
     oauth_device_request._json_body = {"matlabVersion": "R2023b"}
 
     resp = await app.device_authorize(oauth_device_request)
 
     assert resp.status == HTTPStatus.OK
     # The user-chosen version must be recorded for later licensing/start.
-    assert settings["matlab_version"] == "R2023b"
+    assert settings.matlab_version == "R2023b"
     # And the device code (a secret) must never be sent to the frontend.
     body = json.loads(resp.body)
     assert "device_code" not in body
@@ -1459,14 +1468,14 @@ async def test_device_authorize_ignores_matlab_version_when_determined_on_startu
     """If the version was determined on startup, a posted matlabVersion is ignored
     - the server-detected version wins (same rule as the MHLM path)."""
     settings = oauth_device_request.app["settings"]
-    settings["matlab_version_determined_on_startup"] = True
-    settings["matlab_version"] = "R2024b"
+    settings.matlab_version_determined_on_startup = True
+    settings.matlab_version = "R2024b"
     oauth_device_request._json_body = {"matlabVersion": "R2023b"}
 
     resp = await app.device_authorize(oauth_device_request)
 
     assert resp.status == HTTPStatus.OK
-    assert settings["matlab_version"] == "R2024b"
+    assert settings.matlab_version == "R2024b"
 
 
 async def test_poll_device_token_surfaces_entitlement_error(
@@ -1476,8 +1485,8 @@ async def test_poll_device_token_surfaces_entitlement_error(
     licensing error, and no partial OAuth state or secrets are retained."""
     state = oauth_device_request.app["state"]
     settings = state.settings
-    settings.update(
-        {
+    state.device_flow = DeviceFlowState(
+        **{
             "device_code": "secret-device-code",
             "code_verifier": "code-verifier",
             "device_auth_cached_status": None,
@@ -1486,20 +1495,17 @@ async def test_poll_device_token_surfaces_entitlement_error(
             "dpop_key": "dpop-key",
         }
     )
-    state.licensing = {
-        "type": "oauth",
-        "client_id": settings["oauth_client_id"],
-        "entitlements": [],
-        "entitlement_id": None,
-    }
+    state.licensing = OAuthLicense(
+        client_id=settings.oauth_client_id, entitlements=[], entitlement_id=None
+    )
 
     mocker.patch.object(
-        app.mw,
-        "check_device_auth_status",
+        state.device_flow,
+        "check_auth_status",
         new=mocker.AsyncMock(return_value={"status": "AUTHORIZED"}),
     )
     mocker.patch.object(
-        app.mw,
+        licensing_routes.mw,
         "exchange_device_token",
         new=mocker.AsyncMock(return_value={"access_token": "access-token"}),
     )
@@ -1515,13 +1521,10 @@ async def test_poll_device_token_surfaces_entitlement_error(
         "status": "error",
         "error": error.message,
     }
-    state._remove_oauth_client_entry.assert_called_once_with(
-        settings["oauth_client_id"]
-    )
-    state.unset_licensing.assert_called_once()
-    assert settings["device_code"] is None
-    assert settings["code_verifier"] is None
-    assert settings["dpop_key"] is None
+    state.discard_oauth_licensing.assert_called_once_with()
+    assert state.device_flow.device_code is None
+    assert state.device_flow.code_verifier is None
+    assert state.device_flow.dpop_key is None
 
 
 async def test_licensing_info_delete_revokes_oauth_token(
@@ -1530,29 +1533,30 @@ async def test_licensing_info_delete_revokes_oauth_token(
     """Signing out of an OAuth session must revoke the refresh token server-side
     (best-effort) before the local client entry and in-memory state are cleared."""
     state = mocker.MagicMock()
-    state.settings = {
-        "oauth_endpoint": "https://signin.mathworks.com",
-        "matlab_version": "R2024b",
-        "matlab_version_determined_on_startup": True,
-    }
-    state.licensing = {
-        "type": "oauth",
-        "client_id": "mw-cpi-matlab-proxy",
-        "refresh_token": "refresh-to-revoke",
-        "dpop_key": "the-dpop-key",
-    }
+    state.settings = Settings.from_dict(
+        {
+            "oauth_endpoint": "https://signin.mathworks.com",
+            "matlab_version": "R2024b",
+            "matlab_version_determined_on_startup": True,
+        }
+    )
+    state.licensing = OAuthLicense(
+        client_id="mw-cpi-matlab-proxy",
+        refresh_token="refresh-to-revoke",
+        dpop_key="the-dpop-key",
+    )
     state.stop_matlab = mocker.AsyncMock()
 
     req = mocker.MagicMock()
     req.app = {"state": state}
 
     revoke = mocker.patch(
-        "matlab_proxy.app.mw.revoke_oauth_token", new=mocker.AsyncMock()
+        "matlab_proxy.licensing.routes.mw.revoke_oauth_token", new=mocker.AsyncMock()
     )
     # create_status_response reads many state fields; stub it out - this test only
     # cares that revoke is called and the local entry/state are cleared.
     mocker.patch(
-        "matlab_proxy.app.create_status_response",
+        "matlab_proxy.licensing.routes.create_status_response",
         return_value=web.json_response({}),
     )
 
@@ -1566,8 +1570,7 @@ async def test_licensing_info_delete_revokes_oauth_token(
         dpop_key="the-dpop-key",
     )
     # Only this client's entry is removed, then in-memory licensing is cleared.
-    state._remove_oauth_client_entry.assert_called_once_with("mw-cpi-matlab-proxy")
-    state.unset_licensing.assert_called_once()
+    state.discard_oauth_licensing.assert_called_once_with()
 
 
 async def test_licensing_info_delete_oauth_without_refresh_token_skips_revoke(
@@ -1576,34 +1579,31 @@ async def test_licensing_info_delete_oauth_without_refresh_token_skips_revoke(
     """If there is no stored refresh token, sign-out must not attempt a revoke,
     but must still clear the local entry and in-memory state."""
     state = mocker.MagicMock()
-    state.settings = {
-        "oauth_endpoint": "https://signin.mathworks.com",
-        "matlab_version": "R2024b",
-        "matlab_version_determined_on_startup": True,
-    }
-    state.licensing = {
-        "type": "oauth",
-        "client_id": "mw-cpi-matlab-proxy",
-        "refresh_token": None,
-    }
+    state.settings = Settings.from_dict(
+        {
+            "oauth_endpoint": "https://signin.mathworks.com",
+            "matlab_version": "R2024b",
+            "matlab_version_determined_on_startup": True,
+        }
+    )
+    state.licensing = OAuthLicense(client_id="mw-cpi-matlab-proxy", refresh_token=None)
     state.stop_matlab = mocker.AsyncMock()
 
     req = mocker.MagicMock()
     req.app = {"state": state}
 
     revoke = mocker.patch(
-        "matlab_proxy.app.mw.revoke_oauth_token", new=mocker.AsyncMock()
+        "matlab_proxy.licensing.routes.mw.revoke_oauth_token", new=mocker.AsyncMock()
     )
     mocker.patch(
-        "matlab_proxy.app.create_status_response",
+        "matlab_proxy.licensing.routes.create_status_response",
         return_value=web.json_response({}),
     )
 
     await app.licensing_info_delete(req)
 
     revoke.assert_not_awaited()
-    state._remove_oauth_client_entry.assert_called_once_with("mw-cpi-matlab-proxy")
-    state.unset_licensing.assert_called_once()
+    state.discard_oauth_licensing.assert_called_once_with()
 
 
 async def test_device_authorize_handles_empty_body(
@@ -1611,8 +1611,8 @@ async def test_device_authorize_handles_empty_body(
 ):
     """device_authorize must not fail when the POST has no JSON body (version known)."""
     settings = oauth_device_request.app["settings"]
-    settings["matlab_version_determined_on_startup"] = True
-    settings["matlab_version"] = "R2024b"
+    settings.matlab_version_determined_on_startup = True
+    settings.matlab_version = "R2024b"
 
     # Simulate a request with no/invalid JSON body.
     async def _raise():
@@ -1623,4 +1623,4 @@ async def test_device_authorize_handles_empty_body(
     resp = await app.device_authorize(oauth_device_request)
 
     assert resp.status == HTTPStatus.OK
-    assert settings["matlab_version"] == "R2024b"
+    assert settings.matlab_version == "R2024b"

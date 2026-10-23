@@ -1,4 +1,4 @@
-# Copyright 2023-2024 The MathWorks, Inc.
+# Copyright 2023-2026 The MathWorks, Inc.
 # Utility functions for integration testing of matlab-proxy
 
 import asyncio
@@ -349,4 +349,4 @@ def get_matlab_config_file():
     """
     from matlab_proxy import settings
 
-    return settings.get()["matlab_config_file"]
+    return settings.get().matlab_config_file

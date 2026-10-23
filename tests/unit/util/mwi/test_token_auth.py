@@ -1,4 +1,4 @@
-# Copyright 2023-2025 The MathWorks, Inc.
+# Copyright 2023-2026 The MathWorks, Inc.
 
 import pytest
 from aiohttp import web
@@ -7,6 +7,7 @@ from aiohttp_session.cookie_storage import EncryptedCookieStorage
 from cryptography import fernet
 
 from matlab_proxy.constants import MWI_AUTH_TOKEN_NAME_FOR_HTTP
+from matlab_proxy.settings import Settings
 from matlab_proxy.util.mwi import environment_variables as mwi_env
 from matlab_proxy.util.mwi import token_auth
 
@@ -105,13 +106,13 @@ async def fake_server_with_auth_enabled(
     ) = token_auth.generate_mwi_auth_token_and_hash().values()
 
     app = web.Application()
-    app["settings"] = {
-        "mwi_is_token_auth_enabled": mwi_auth_token is not None,
-        "mwi_auth_token": mwi_auth_token,
-        "mwi_auth_token_hash": mwi_auth_token_hash,
-        "mwi_auth_token_name_for_http": MWI_AUTH_TOKEN_NAME_FOR_HTTP,
-        "mwi_auth_token_name_for_env": mwi_env.get_env_name_mwi_auth_token().lower(),
-    }
+    app["settings"] = Settings(
+        mwi_is_token_auth_enabled=mwi_auth_token is not None,
+        mwi_auth_token=mwi_auth_token,
+        mwi_auth_token_hash=mwi_auth_token_hash,
+        mwi_auth_token_name_for_http=MWI_AUTH_TOKEN_NAME_FOR_HTTP,
+        mwi_auth_token_name_for_env=mwi_env.get_env_name_mwi_auth_token().lower(),
+    )
     app.router.add_get("/", fake_endpoint)
     app.router.add_post("/", fake_endpoint)
     # Setup the session storage
@@ -267,12 +268,12 @@ async def fake_server_without_auth_enabled(aiohttp_client, monkeypatch):
     ) = token_auth.generate_mwi_auth_token_and_hash().values()
 
     app = web.Application()
-    app["settings"] = {
-        "mwi_is_token_auth_enabled": mwi_auth_token != None,
-        "mwi_auth_token": mwi_auth_token,
-        "mwi_auth_token_hash": mwi_auth_token_hash,
-        "mwi_auth_token_name_for_env": mwi_env.get_env_name_mwi_auth_token().lower(),
-    }
+    app["settings"] = Settings(
+        mwi_is_token_auth_enabled=mwi_auth_token != None,
+        mwi_auth_token=mwi_auth_token,
+        mwi_auth_token_hash=mwi_auth_token_hash,
+        mwi_auth_token_name_for_env=mwi_env.get_env_name_mwi_auth_token().lower(),
+    )
     app.router.add_get("/", fake_endpoint)
     app.router.add_post("/", fake_endpoint)
     # Setup the session storage

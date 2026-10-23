@@ -187,7 +187,7 @@ function DeviceOAuth ({ onSwitchToOldExperience = null }) {
     // Kick off the device flow. The MATLAB version is required in subsequent steps
     // on the server side, so if it could not be determined we send the version the
     // user chose in the dropdown along with the request - mirroring how MHLM sends
-    // matlabVersion with set_licensing_info. The device_code screen is only shown
+    // matlabVersion with set_licensing_info. The verification code screen is only shown
     // after this returns, so the version is collected before the user code appears.
     const handleStartDeviceFlow = useCallback(async () => {
         setStatus('authorizing');
